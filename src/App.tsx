@@ -91,12 +91,16 @@ function AppInner() {
       setErroPin('A confirmação do PIN não confere')
       return
     }
-    const hash = await hashPin(novoPin)
-    await salvarConfiguracao('seguranca_pin_hash', hash)
-    setPinHashSalvo(hash)
-    setNovoPin('')
-    setConfirmarPin('')
-    setEstadoAcesso('desbloqueado')
+    try {
+      const hash = await hashPin(novoPin)
+      await salvarConfiguracao('seguranca_pin_hash', hash)
+      setPinHashSalvo(hash)
+      setNovoPin('')
+      setConfirmarPin('')
+      setEstadoAcesso('desbloqueado')
+    } catch {
+      setErroPin('Não foi possível salvar o PIN. Verifique a conexão com o servidor e tente novamente.')
+    }
   }
 
   const desbloquear = async () => {
@@ -105,19 +109,24 @@ function AppInner() {
       setEstadoAcesso('setup')
       return
     }
-    const hashInformado = await hashPin(pinInput)
-    if (!compararHash(hashInformado, pinHashSalvo)) {
-      const novasTentativas = tentativas + 1
-      setTentativas(novasTentativas)
-      setErroPin(novasTentativas >= 3 ? 'PIN inválido. Aguarde 10 segundos.' : 'PIN inválido')
-      if (novasTentativas >= 3) {
-        setTimeout(() => setTentativas(0), 10_000)
+    try {
+      const hashInformado = await hashPin(pinInput)
+      if (!compararHash(hashInformado, pinHashSalvo)) {
+        const novasTentativas = tentativas + 1
+        setTentativas(novasTentativas)
+        setErroPin(novasTentativas >= 3 ? 'PIN inválido. Aguarde 10 segundos.' : 'PIN inválido')
+        if (novasTentativas >= 3) {
+          setTimeout(() => setTentativas(0), 10_000)
+        }
+        return
       }
-      return
+
+      setTentativas(0)
+      setPinInput('')
+      setEstadoAcesso('desbloqueado')
+    } catch {
+      setErroPin('Não foi possível validar o PIN agora. Tente novamente em instantes.')
     }
-    setTentativas(0)
-    setPinInput('')
-    setEstadoAcesso('desbloqueado')
   }
 
   const navegarPara = (pagina: Pagina) => {
