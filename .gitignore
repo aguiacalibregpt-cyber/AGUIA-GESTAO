@@ -11,3 +11,4 @@ package-lock.json
 src-tauri/Cargo.lock
 .idea
 .vscode
+server/data/db.json

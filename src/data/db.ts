@@ -1,18 +1,26 @@
-import Dexie, { Table } from 'dexie'
-import { Client, ClientSchema } from '../types/models'
+import Dexie, { type Table } from 'dexie'
+import type { Pessoa, Processo, DocumentoRequerido, DocumentoProcesso, Configuracao, BackupHistorico } from '../types/models'
 
-class AppDB extends Dexie {
-  clients!: Table<Client>
+export class AppDatabase extends Dexie {
+  pessoas!: Table<Pessoa>
+  processos!: Table<Processo>
+  documentosRequeridos!: Table<DocumentoRequerido>
+  documentosProcesso!: Table<DocumentoProcesso>
+  configuracoes!: Table<Configuracao>
+  backupsHistorico!: Table<BackupHistorico>
+
   constructor() {
-    super('aguia-gestao-db')
+    super('AguiaGestao')
     this.version(1).stores({
-      clients: 'id, updatedAt',
+      pessoas: 'id, cpf, dataCadastro',
+      processos: 'id, pessoaId, tipo, status, dataPrazo',
+      documentosRequeridos: 'id, *tiposProcesso',
+      documentosProcesso: 'id, processoId, status, dataEntrega',
+      configuracoes: 'id, chave',
+      backupsHistorico: 'id, timestamp, origem',
     })
   }
 }
 
-export const db = new AppDB()
+export const db = new AppDatabase()
 
-export function validateClient(data: Client) {
-  return ClientSchema.parse(data)
-}
