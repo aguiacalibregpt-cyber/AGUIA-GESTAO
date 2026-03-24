@@ -65,19 +65,38 @@ try {
     Write-Log "[INFO] AGUIA_API_TOKEN configurado."
   }
   Write-Log "[INFO] AGUIA_ALLOWED_ORIGINS=$AllowedOrigins"
-  Write-Log "[INFO] Iniciando servidor em http://0.0.0.0:3000"
+  Write-Log "[INFO] Iniciando servidor em processo dedicado..."
 
-  if ($pnpm) {
-    pnpm server
-  } else {
-    node .\server\index.mjs
+  # Inicia diretamente via node para evitar encerramento precoce do wrapper do pnpm.
+  $proc = Start-Process -FilePath "node" -ArgumentList @(".\\server\\index.mjs") -WorkingDirectory $repoRoot -PassThru
+  if (-not $proc) {
+    throw "Falha ao iniciar processo do servidor."
   }
 
-  if ($LASTEXITCODE -ne 0) {
-    throw "Servidor encerrou com codigo $LASTEXITCODE."
+  Write-Log "[INFO] Processo iniciado. PID=$($proc.Id)"
+
+  $escutando = $false
+  for ($i = 0; $i -lt 10; $i++) {
+    Start-Sleep -Milliseconds 500
+
+    if ($proc.HasExited) {
+      throw "Servidor encerrou logo apos iniciar. ExitCode=$($proc.ExitCode)."
+    }
+
+    $porta = Get-NetTCPConnection -LocalPort 3000 -State Listen -ErrorAction SilentlyContinue |
+      Where-Object { $_.OwningProcess -eq $proc.Id }
+
+    if ($porta) {
+      $escutando = $true
+      break
+    }
   }
 
-  Write-Log "[SUCESSO] Servidor finalizado normalmente."
+  if (-not $escutando) {
+    throw "Servidor iniciado, mas nao entrou em LISTENING na porta 3000 dentro do tempo esperado."
+  }
+
+  Write-Log "[SUCESSO] Servidor ativo em http://0.0.0.0:3000 (PID=$($proc.Id))."
   exit 0
 } catch {
   Write-Log "[ERRO] $($_.Exception.Message)"
