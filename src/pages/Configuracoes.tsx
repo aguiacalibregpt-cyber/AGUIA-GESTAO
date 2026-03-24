@@ -1,11 +1,11 @@
-import React, { useState, useEffect, useRef } from 'react'
+import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { db } from '../data/db'
 import type { BackupHistorico, Processo, Pessoa, DocumentoProcesso, Configuracao } from '../types/models'
 import { api } from '../lib/api'
 import { useProcessosStore } from '../stores/processosStore'
 import { usePessoasStore } from '../stores/pessoasStore'
 import { useConfiguracoesStore } from '../stores/configuracoesStore'
-import { Button, Alert, Input, ConfirmDialog } from '../components'
+import { Button, Alert, Input, ConfirmDialog, PageHeader, Skeleton } from '../components'
 import { gerarId, obterMensagemErro } from '../utils/robustness'
 import { montarTabelaRelatorioProcessos } from '../utils/relatorio'
 import {
@@ -75,6 +75,7 @@ export const Configuracoes: React.FC = () => {
   const [tokenApi, setTokenApi] = useState('')
   const [incluirSenhaNoRelatorio, setIncluirSenhaNoRelatorio] = useState(false)
   const inputArquivoRef = useRef<HTMLInputElement>(null)
+  const [carregandoInicial, setCarregandoInicial] = useState(true)
 
   const criarHistorico = (params: {
     origem: BackupHistorico['origem']
@@ -101,30 +102,34 @@ export const Configuracoes: React.FC = () => {
     payload: params.payload,
   })
 
+  const carregarDadosIniciais = useCallback(async () => {
+    try {
+      await Promise.all([carregarPessoas(), carregarProcessos()])
+      const hist = await db.backupsHistorico.orderBy('timestamp').reverse().limit(MAX_HISTORICO).toArray()
+      setHistorico(hist)
+      const ub = await obterConfiguracao('ultimoBackup')
+      setUltimoBackup(typeof ub === 'string' ? ub : null)
+      const emp = await obterConfiguracao('nomeEmpresa')
+      const nome = typeof emp === 'string' ? emp : ''
+      setNomeEmpresa(nome)
+      setNomeEmpresaSalvo(nome)
+      const pinHash = await obterConfiguracao('seguranca_pin_hash')
+      setPinConfigurado(typeof pinHash === 'string' && pinHash.length > 0)
+      const idle = await obterConfiguracao('seguranca_idle_minutos')
+      if (typeof idle === 'number' && idle > 0) setTempoInatividade(String(Math.floor(idle)))
+      try {
+        setTokenApi(localStorage.getItem('aguia.api.token') || '')
+      } catch {
+        setTokenApi('')
+      }
+    } finally {
+      setCarregandoInicial(false)
+    }
+  }, [carregarPessoas, carregarProcessos, obterConfiguracao])
+
   useEffect(() => {
     void carregarDadosIniciais()
-  }, [])
-
-  const carregarDadosIniciais = async () => {
-    await Promise.all([carregarPessoas(), carregarProcessos()])
-    const hist = await db.backupsHistorico.orderBy('timestamp').reverse().limit(MAX_HISTORICO).toArray()
-    setHistorico(hist)
-    const ub = await obterConfiguracao('ultimoBackup')
-    setUltimoBackup(typeof ub === 'string' ? ub : null)
-    const emp = await obterConfiguracao('nomeEmpresa')
-    const nome = typeof emp === 'string' ? emp : ''
-    setNomeEmpresa(nome)
-    setNomeEmpresaSalvo(nome)
-    const pinHash = await obterConfiguracao('seguranca_pin_hash')
-    setPinConfigurado(typeof pinHash === 'string' && pinHash.length > 0)
-    const idle = await obterConfiguracao('seguranca_idle_minutos')
-    if (typeof idle === 'number' && idle > 0) setTempoInatividade(String(Math.floor(idle)))
-    try {
-      setTokenApi(localStorage.getItem('aguia.api.token') || '')
-    } catch {
-      setTokenApi('')
-    }
-  }
+  }, [carregarDadosIniciais])
 
   const salvarNomeEmpresa = async () => {
     await salvarConfiguracao('nomeEmpresa', nomeEmpresa.trim())
@@ -445,17 +450,11 @@ export const Configuracoes: React.FC = () => {
   return (
     <div className="space-y-6">
       {/* Cabeçalho */}
-      <div className="bg-gradient-to-r from-zinc-950 via-red-950 to-black rounded-xl shadow-lg p-8 text-white border border-red-900/70">
-        <div className="flex items-center gap-4">
-          <div className="bg-red-900/50 rounded-lg p-3 border border-red-800/70">
-            <Settings className="w-8 h-8" />
-          </div>
-          <div>
-            <h1 className="text-3xl font-bold">Configurações</h1>
-            <p className="text-red-200 mt-1">Backup, restauração, relatórios e dados</p>
-          </div>
-        </div>
-      </div>
+      <PageHeader
+        icon={<Settings className="w-8 h-8" />}
+        title="Configurações"
+        subtitle="Backup, restauração, relatórios e dados"
+      />
 
       {diasDesdeBackup !== null && diasDesdeBackup > 7 && (
         <Alert
@@ -466,12 +465,24 @@ export const Configuracoes: React.FC = () => {
 
       {mensagem && <Alert type={mensagem.tipo} message={mensagem.texto} onClose={() => setMensagem(null)} />}
 
+      {carregandoInicial && (
+        <div className="space-y-4">
+          {Array.from({ length: 4 }).map((_, idx) => (
+            <div key={`config-skeleton-${idx}`} className="bg-white rounded-2xl shadow-sm ring-1 ring-black/5 p-5 space-y-3">
+              <Skeleton className="h-5 w-40" />
+              <Skeleton className="h-10 w-full" />
+              <Skeleton className="h-10 w-2/3" />
+            </div>
+          ))}
+        </div>
+      )}
+
       {/* Nome da empresa */}
-      <div className="bg-white rounded-xl shadow p-5">
+      {!carregandoInicial && <div className="bg-white rounded-2xl shadow-sm ring-1 ring-black/5 p-5">
         <h2 className="font-semibold text-gray-800 mb-4 flex items-center gap-2">
           <Settings className="w-5 h-5 text-gray-500" /> Configurações Gerais
         </h2>
-        <div className="flex gap-3">
+        <div className="flex flex-col md:flex-row gap-3">
           <Input
             label="Nome da empresa / despachante"
             value={nomeEmpresa}
@@ -479,16 +490,16 @@ export const Configuracoes: React.FC = () => {
             placeholder="Ex: Águia Gestão e Despachante"
             className="flex-1"
           />
-          <div className="flex items-end">
+          <div className="flex items-end md:pb-0">
             <Button onClick={() => void salvarNomeEmpresa()} disabled={nomeEmpresa === nomeEmpresaSalvo}>
               Salvar
             </Button>
           </div>
         </div>
-      </div>
+      </div>}
 
       {/* Segurança */}
-      <div className="bg-white rounded-xl shadow p-5">
+      {!carregandoInicial && <div className="bg-white rounded-2xl shadow-sm ring-1 ring-black/5 p-5">
         <h2 className="font-semibold text-gray-800 mb-4 flex items-center gap-2">
           <ShieldCheck className="w-5 h-5 text-gray-500" /> Segurança de Acesso
         </h2>
@@ -536,10 +547,10 @@ export const Configuracoes: React.FC = () => {
             Salvar segurança
           </Button>
         </div>
-      </div>
+      </div>}
 
       {/* Backup */}
-      <div className="bg-white rounded-xl shadow p-5">
+      {!carregandoInicial && <div className="bg-white rounded-2xl shadow-sm ring-1 ring-black/5 p-5">
         <h2 className="font-semibold text-gray-800 mb-1 flex items-center gap-2">
           <Download className="w-5 h-5 text-gray-500" /> Gerar Backup
         </h2>
@@ -570,10 +581,10 @@ export const Configuracoes: React.FC = () => {
             </Button>
           </div>
         </div>
-      </div>
+      </div>}
 
       {/* Restauração */}
-      <div className="bg-white rounded-xl shadow p-5">
+      {!carregandoInicial && <div className="bg-white rounded-2xl shadow-sm ring-1 ring-black/5 p-5">
         <h2 className="font-semibold text-gray-800 mb-1 flex items-center gap-2">
           <Upload className="w-5 h-5 text-gray-500" /> Restaurar Backup
         </h2>
@@ -612,10 +623,10 @@ export const Configuracoes: React.FC = () => {
             e.target.value = ''
           }}
         />
-      </div>
+      </div>}
 
       {/* Relatório PDF */}
-      <div className="bg-white rounded-xl shadow p-5">
+      {!carregandoInicial && <div className="bg-white rounded-2xl shadow-sm ring-1 ring-black/5 p-5">
         <h2 className="font-semibold text-gray-800 mb-1 flex items-center gap-2">
           <FileText className="w-5 h-5 text-gray-500" /> Relatório em PDF
         </h2>
@@ -633,10 +644,10 @@ export const Configuracoes: React.FC = () => {
           <FileText className="w-4 h-4" />
           Gerar PDF
         </Button>
-      </div>
+      </div>}
 
       {/* Diagnóstico */}
-      <div className="bg-white rounded-xl shadow p-5">
+      {!carregandoInicial && <div className="bg-white rounded-2xl shadow-sm ring-1 ring-black/5 p-5">
         <h2 className="font-semibold text-gray-800 mb-1 flex items-center gap-2">
           <ShieldCheck className="w-5 h-5 text-gray-500" /> Diagnóstico de Integridade
         </h2>
@@ -655,11 +666,11 @@ export const Configuracoes: React.FC = () => {
             ))}
           </ul>
         )}
-      </div>
+      </div>}
 
       {/* Histórico de backups */}
-      {historico.length > 0 && (
-        <div className="bg-white rounded-xl shadow p-5">
+      {!carregandoInicial && historico.length > 0 && (
+        <div className="bg-white rounded-2xl shadow-sm ring-1 ring-black/5 p-5">
           <h2 className="font-semibold text-gray-800 mb-4 flex items-center gap-2">
             <Clock className="w-5 h-5 text-gray-500" /> Histórico de Backups
           </h2>
@@ -678,7 +689,7 @@ export const Configuracoes: React.FC = () => {
       )}
 
       {/* Zona de perigo */}
-      <div className="bg-white rounded-xl shadow border border-red-200 p-5">
+      {!carregandoInicial && <div className="bg-white rounded-2xl shadow-sm ring-1 ring-red-200 p-5">
         <h2 className="font-semibold text-red-700 mb-1 flex items-center gap-2">
           <AlertTriangle className="w-5 h-5" /> Zona de Perigo
         </h2>
@@ -689,7 +700,7 @@ export const Configuracoes: React.FC = () => {
           <Trash2 className="w-4 h-4" />
           Apagar todos os dados
         </Button>
-      </div>
+      </div>}
 
       <ConfirmDialog
         open={confirmaExclusao}

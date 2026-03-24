@@ -53,6 +53,9 @@ Legenda:
 | T20 | Tarefa AGUIA-Servidor-Autostart instalada | [ ] | [ ] | [ ] | |
 | T21 | Servidor sobe apos logoff/logon (sem start manual) | [ ] | [ ] | [ ] | |
 | T22 | Tarefa AGUIA-Backup-Diario instalada no horario definido | [ ] | [ ] | [ ] | |
+| T23 | Durante sincronizacao em segundo plano, indicador `Atualizando...` aparece sem bloquear a tela | [ ] | [ ] | [ ] | |
+| T24 | Em atualizacao muito rapida, indicador `Atualizando...` nao pisca de forma perceptivel | [ ] | [ ] | [ ] | |
+| T25 | Suite de testes UI executada com sucesso no host (navegacao, filtros e badge) | [ ] | [ ] | [ ] | |
 
 ---
 

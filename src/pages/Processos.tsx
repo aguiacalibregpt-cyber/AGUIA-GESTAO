@@ -3,7 +3,7 @@ import type { Processo } from '../types/models'
 import { TipoProcesso, StatusProcesso } from '../types/models'
 import { useProcessosStore } from '../stores/processosStore'
 import { usePessoasStore } from '../stores/pessoasStore'
-import { Input, Button, Alert, ConfirmDialog } from '../components'
+import { Input, Button, Alert, ConfirmDialog, PageHeader, Skeleton, BackgroundSyncBadge } from '../components'
 import {
   formatarData,
   obterDataHoje,
@@ -40,6 +40,7 @@ interface ProcessosProps {
 }
 
 type FiltroStatus = 'todos' | StatusProcesso
+type FiltroTipo = 'todos' | TipoProcesso
 type FiltroVenc = 'todos' | 'vencidos' | 'hoje' | 'semana'
 
 const ORDEM_TIPOS_PROCESSO: TipoProcesso[] = [
@@ -86,15 +87,16 @@ const dataParaInput = (data?: Date): string => {
 }
 
 export const Processos: React.FC<ProcessosProps> = ({ pessoaIdInicial }) => {
-  const { processos, carregarProcessos, adicionarProcesso, atualizarProcesso, deletarProcesso, erro } =
+  const { processos, carregarProcessos, adicionarProcesso, atualizarProcesso, deletarProcesso, erro, carregando: carregandoProcessos } =
     useProcessosStore()
-  const { pessoas, carregarPessoas, adicionarPessoa } = usePessoasStore()
+  const { pessoas, carregarPessoas, adicionarPessoa, carregando: carregandoPessoas } = usePessoasStore()
   const topoRef = React.useRef<HTMLDivElement>(null)
   const [mostraModal, setMostraModal] = useState(false)
   const [editandoId, setEditandoId] = useState<string | null>(null)
   const [detalhesId, setDetalhesId] = useState<string | null>(null)
   const [busca, setBusca] = useState('')
   const [filtroStatus, setFiltroStatus] = useState<FiltroStatus>('todos')
+  const [filtroTipo, setFiltroTipo] = useState<FiltroTipo>('todos')
   const [filtroVenc, setFiltroVenc] = useState<FiltroVenc>('todos')
   const [formData, setFormData] = useState({ ...FORM_INICIAL, pessoaId: pessoaIdInicial || '' })
   const [formErros, setFormErros] = useState<Partial<Record<string, string>>>({})
@@ -129,9 +131,11 @@ export const Processos: React.FC<ProcessosProps> = ({ pessoaIdInicial }) => {
   })
   const [formErrosNovaP, setFormErrosNovaP] = useState<Partial<Record<string, string>>>({})
   const [salvandoNovaP, setSalvandoNovaP] = useState(false)
+  const carregandoInicial = Boolean(carregandoProcessos || carregandoPessoas) && processos.length === 0
+  const atualizandoEmSegundoPlano = Boolean(carregandoProcessos || carregandoPessoas) && !carregandoInicial
 
-  useEffect(() => { void carregarProcessos() }, [])
-  useEffect(() => { void carregarPessoas() }, [])
+  useEffect(() => { void carregarProcessos() }, [carregarProcessos])
+  useEffect(() => { void carregarPessoas() }, [carregarPessoas])
   useEffect(() => {
     let ativo = true
     const sincronizar = () => {
@@ -168,6 +172,7 @@ export const Processos: React.FC<ProcessosProps> = ({ pessoaIdInicial }) => {
   const processadosFiltrados = useMemo(() => {
     return processos.filter((p) => {
       if (filtroStatus !== 'todos' && p.status !== filtroStatus) return false
+      if (filtroTipo !== 'todos' && p.tipo !== filtroTipo) return false
       if (busca) {
         const pessoa = pessoas.find((pe) => pe.id === p.pessoaId)
         const textoBusca = busca.toLowerCase()
@@ -180,7 +185,8 @@ export const Processos: React.FC<ProcessosProps> = ({ pessoaIdInicial }) => {
           !cpfNormalizado.includes(buscaNormalizada)
         ) return false
       }
-      if (filtroVenc !== 'todos' && p.dataPrazo) {
+      if (filtroVenc !== 'todos') {
+        if (!p.dataPrazo) return false
         const diff = calcularDiasRestantes(p.dataPrazo)
         if (filtroVenc === 'vencidos' && (diff === null || diff >= 0)) return false
         if (filtroVenc === 'hoje' && diff !== 0) return false
@@ -192,7 +198,7 @@ export const Processos: React.FC<ProcessosProps> = ({ pessoaIdInicial }) => {
       const dataB = new Date(b.dataAbertura || b.dataCadastro).getTime()
       return dataA - dataB
     })
-  }, [processos, pessoas, busca, filtroStatus, filtroVenc])
+  }, [processos, pessoas, busca, filtroStatus, filtroTipo, filtroVenc])
 
   const abrirModalNovo = () => {
     setFormData({ ...FORM_INICIAL, pessoaId: pessoaIdInicial || '' })
@@ -347,6 +353,7 @@ export const Processos: React.FC<ProcessosProps> = ({ pessoaIdInicial }) => {
   const limparFiltros = () => {
     setBusca('')
     setFiltroStatus('todos')
+    setFiltroTipo('todos')
     setFiltroVenc('todos')
   }
 
@@ -388,29 +395,26 @@ export const Processos: React.FC<ProcessosProps> = ({ pessoaIdInicial }) => {
   return (
     <div className="space-y-6" ref={topoRef}>
       {/* Cabeçalho */}
-      <div className="bg-gradient-to-r from-zinc-950 via-red-950 to-black rounded-xl shadow-lg p-8 text-white border border-red-900/70">
-        <div className="flex items-center justify-between gap-4 flex-wrap">
-          <div className="flex items-center gap-4">
-            <div className="bg-red-900/50 rounded-lg p-3 border border-red-800/70">
-              <FileText className="w-8 h-8" />
-            </div>
-            <div>
-              <h1 className="text-3xl font-bold">Processos</h1>
-              <p className="text-red-200 mt-1">{processadosFiltrados.length} processo(s)</p>
-            </div>
+      <PageHeader
+        icon={<FileText className="w-8 h-8" />}
+        title="Processos"
+        subtitle={`${processadosFiltrados.length} processo(s)`}
+        actions={
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            <BackgroundSyncBadge active={atualizandoEmSegundoPlano} />
+            <Button onClick={abrirModalNovo} className="w-full sm:w-auto bg-white/10 border border-white/20 hover:bg-white/20 text-white">
+              <Plus className="w-5 h-5" />
+              Novo Processo
+            </Button>
           </div>
-          <Button onClick={abrirModalNovo} className="bg-white/10 border border-white/20 hover:bg-white/20 text-white">
-            <Plus className="w-5 h-5" />
-            Novo Processo
-          </Button>
-        </div>
-      </div>
+        }
+      />
 
       {mensagem && <Alert type={mensagem.tipo} message={mensagem.texto} onClose={() => setMensagem(null)} />}
       {erro && <Alert type="error" message={erro} />}
 
       {/* Filtros */}
-      <div className="bg-white rounded-xl shadow p-4 space-y-3">
+      <div className="bg-white rounded-2xl shadow-sm ring-1 ring-black/5 p-4 space-y-3">
         <div className="relative">
           <Search className="absolute left-3 top-3 w-4 h-4 text-gray-400" />
           <input
@@ -425,10 +429,20 @@ export const Processos: React.FC<ProcessosProps> = ({ pessoaIdInicial }) => {
           <select
             value={filtroStatus}
             onChange={(e) => setFiltroStatus(e.target.value as FiltroStatus)}
-            className="text-sm border border-gray-300 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-red-500"
+            className="text-sm border border-gray-300 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-red-500 w-full sm:w-auto"
           >
             <option value="todos">Todos os status</option>
             {STATUS_OPTIONS.map((o) => (
+              <option key={o.value} value={o.value}>{o.label}</option>
+            ))}
+          </select>
+          <select
+            value={filtroTipo}
+            onChange={(e) => setFiltroTipo(e.target.value as FiltroTipo)}
+            className="text-sm border border-gray-300 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-red-500 w-full sm:w-auto"
+          >
+            <option value="todos">Todos os tipos</option>
+            {TIPOS_OPTIONS.map((o) => (
               <option key={o.value} value={o.value}>{o.label}</option>
             ))}
           </select>
@@ -436,7 +450,7 @@ export const Processos: React.FC<ProcessosProps> = ({ pessoaIdInicial }) => {
             <button
               key={v}
               onClick={() => setFiltroVenc(v)}
-              className={`text-sm px-3 py-1.5 rounded-lg border transition-colors ${filtroVenc === v ? 'bg-red-700 text-white border-red-700' : 'border-gray-300 hover:bg-gray-50'}`}
+              className={`text-sm px-3 py-1.5 rounded-lg border transition-colors flex-1 sm:flex-none ${filtroVenc === v ? 'bg-red-700 text-white border-red-700' : 'border-gray-300 hover:bg-gray-50'}`}
             >
               {v === 'todos' ? 'Todos prazos' : v === 'vencidos' ? 'Vencidos' : v === 'hoje' ? 'Vence hoje' : 'Esta semana'}
             </button>
@@ -445,7 +459,7 @@ export const Processos: React.FC<ProcessosProps> = ({ pessoaIdInicial }) => {
         <div className="flex gap-2 pt-2 border-t border-gray-200">
           <button
             onClick={limparFiltros}
-            disabled={!busca && filtroStatus === 'todos' && filtroVenc === 'todos'}
+            disabled={!busca && filtroStatus === 'todos' && filtroTipo === 'todos' && filtroVenc === 'todos'}
             className="flex items-center gap-2 text-sm px-3 py-1.5 rounded-lg border border-gray-300 hover:bg-gray-50 text-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <XCircle className="w-4 h-4" />
@@ -454,12 +468,25 @@ export const Processos: React.FC<ProcessosProps> = ({ pessoaIdInicial }) => {
         </div>
       </div>
 
+      {carregandoInicial && (
+        <div className="space-y-3">
+          {Array.from({ length: 5 }).map((_, idx) => (
+            <div key={`processo-skeleton-${idx}`} className="bg-white rounded-2xl shadow-sm ring-1 ring-black/5 p-4 space-y-3">
+              <Skeleton className="h-5 w-2/3" />
+              <Skeleton className="h-4 w-1/3" />
+              <Skeleton className="h-4 w-1/2" />
+              <Skeleton className="h-8 w-full" />
+            </div>
+          ))}
+        </div>
+      )}
+
       {/* Lista */}
-      {processadosFiltrados.length === 0 ? (
-        <div className="bg-white rounded-xl shadow p-10 text-center text-gray-500">
+      {!carregandoInicial && processadosFiltrados.length === 0 ? (
+        <div className="bg-white rounded-2xl shadow-sm ring-1 ring-black/5 p-10 text-center text-gray-500">
           <FileText className="w-12 h-12 mx-auto mb-3 text-gray-300" />
           <p className="font-medium">Nenhum processo encontrado</p>
-          {!busca && filtroStatus === 'todos' && (
+          {!busca && filtroStatus === 'todos' && filtroTipo === 'todos' && filtroVenc === 'todos' && (
             <Button onClick={abrirModalNovo} className="mt-4">
               <Plus className="w-4 h-4" />
               Cadastrar primeiro processo
@@ -467,132 +494,199 @@ export const Processos: React.FC<ProcessosProps> = ({ pessoaIdInicial }) => {
           )}
         </div>
       ) : (
-        <div className="bg-white rounded-xl shadow border border-gray-100 overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="min-w-full text-sm">
-              <thead className="bg-gray-50 border-b border-gray-100">
-                <tr>
-                  <th className="text-left px-4 py-3 font-semibold text-gray-600">Pessoa</th>
-                  <th className="text-left px-4 py-3 font-semibold text-gray-600">Tipo</th>
-                  <th className="text-left px-4 py-3 font-semibold text-gray-600">Status</th>
-                  <th className="text-left px-4 py-3 font-semibold text-gray-600">Data Prazo</th>
-                  <th className="text-right px-4 py-3 font-semibold text-gray-600">Ações</th>
-                </tr>
-              </thead>
-              <tbody>
-                {processadosFiltrados.map((processo) => {
-                  const pessoa = pessoas.find((p) => p.id === processo.pessoaId)
-                  const diasRestantes = processo.dataPrazo ? calcularDiasRestantes(processo.dataPrazo) : null
-                  const vencido = diasRestantes !== null && diasRestantes < 0
-                  const venceHoje = diasRestantes === 0
-                  const processoAberto = ultimoProcessoComDocumentos === processo.id || ultimoProcessoComCredenciais === processo.id
-                  let bgClass = 'hover:bg-gray-50'
-                  if (processoAberto) {
-                    bgClass = 'bg-green-50 hover:bg-green-100'
-                  } else if (vencido) {
-                    bgClass = 'bg-red-50 hover:bg-red-100'
-                  }
-                  return (
-                    <tr key={processo.id} className={`border-b border-gray-100 transition-colors ${bgClass}`}>
-                      <td className="px-4 py-3">
-                        <p className="font-medium text-gray-900">{pessoa?.nome || 'Pessoa não encontrada'}</p>
-                        <p className="text-xs text-gray-500 font-mono">{pessoa?.cpf || 'Sem CPF'}</p>
-                      </td>
-                      <td className="px-4 py-3 text-gray-700">{nomesTipoProcesso[processo.tipo]}</td>
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${coresStatusProcesso[processo.status]}`}>
-                            {nomesStatusProcesso[processo.status]}
-                          </span>
-                          {vencido && (
-                            <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-red-100 text-red-700 flex items-center gap-1">
-                              <AlertTriangle className="w-3 h-3" />
-                              {Math.abs(diasRestantes!)}d
+        <div className="space-y-3">
+          <div className="md:hidden space-y-3">
+            {processadosFiltrados.map((processo) => {
+              const pessoa = pessoas.find((p) => p.id === processo.pessoaId)
+              const diasRestantes = processo.dataPrazo ? calcularDiasRestantes(processo.dataPrazo) : null
+              const vencido = diasRestantes !== null && diasRestantes < 0
+              const venceHoje = diasRestantes === 0
+              return (
+                <div key={processo.id} className={`bg-white rounded-2xl shadow-sm ring-1 p-4 ${vencido ? 'ring-red-200' : 'ring-black/5'}`}>
+                  <p className="font-semibold text-gray-900">{pessoa?.nome || 'Pessoa não encontrada'}</p>
+                  <p className="text-xs text-gray-500 font-mono mt-1">{pessoa?.cpf || 'Sem CPF'}</p>
+                  <p className="text-sm text-gray-700 mt-2">{nomesTipoProcesso[processo.tipo]}</p>
+                  <div className="flex items-center gap-2 flex-wrap mt-2">
+                    <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${coresStatusProcesso[processo.status]}`}>
+                      {nomesStatusProcesso[processo.status]}
+                    </span>
+                    {vencido && (
+                      <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-red-100 text-red-700 flex items-center gap-1">
+                        <AlertTriangle className="w-3 h-3" />
+                        {Math.abs(diasRestantes!)}d
+                      </span>
+                    )}
+                    {venceHoje && (
+                      <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">
+                        Hoje
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-sm text-gray-600 mt-2">
+                    Prazo: {processo.dataPrazo ? formatarData(processo.dataPrazo) : '-'}
+                  </p>
+                  <div className="flex justify-end gap-1 mt-3">
+                    <button
+                      onClick={() => void abrirCredenciais(processo)}
+                      title="Ver credenciais"
+                      className="p-1.5 text-amber-600 hover:bg-amber-50 rounded-lg transition-colors"
+                    >
+                      <Eye className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => setDetalhesId(processo.id)}
+                      title="Ver documentos"
+                      className="p-1.5 text-purple-600 hover:bg-purple-50 rounded-lg transition-colors"
+                    >
+                      <ClipboardList className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => abrirModalEditar(processo)}
+                      title="Editar"
+                      className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                    >
+                      <Edit2 className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => setProcessoParaExcluir({ id: processo.id, numero: processo.numero || 'este processo' })}
+                      title="Excluir"
+                      className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+
+          <div className="hidden md:block bg-white rounded-2xl shadow-sm ring-1 ring-black/5 overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="min-w-full text-sm">
+                <thead className="bg-gray-50 border-b border-gray-100">
+                  <tr>
+                    <th className="text-left px-4 py-3 font-semibold text-gray-600">Pessoa</th>
+                    <th className="text-left px-4 py-3 font-semibold text-gray-600">Tipo</th>
+                    <th className="text-left px-4 py-3 font-semibold text-gray-600">Status</th>
+                    <th className="text-left px-4 py-3 font-semibold text-gray-600">Data Prazo</th>
+                    <th className="text-right px-4 py-3 font-semibold text-gray-600">Ações</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {processadosFiltrados.map((processo) => {
+                    const pessoa = pessoas.find((p) => p.id === processo.pessoaId)
+                    const diasRestantes = processo.dataPrazo ? calcularDiasRestantes(processo.dataPrazo) : null
+                    const vencido = diasRestantes !== null && diasRestantes < 0
+                    const venceHoje = diasRestantes === 0
+                    const processoAberto = ultimoProcessoComDocumentos === processo.id || ultimoProcessoComCredenciais === processo.id
+                    let bgClass = 'hover:bg-gray-50'
+                    if (processoAberto) {
+                      bgClass = 'bg-green-50 hover:bg-green-100'
+                    } else if (vencido) {
+                      bgClass = 'bg-red-50 hover:bg-red-100'
+                    }
+                    return (
+                      <tr key={processo.id} className={`border-b border-gray-100 transition-colors ${bgClass}`}>
+                        <td className="px-4 py-3">
+                          <p className="font-medium text-gray-900">{pessoa?.nome || 'Pessoa não encontrada'}</p>
+                          <p className="text-xs text-gray-500 font-mono">{pessoa?.cpf || 'Sem CPF'}</p>
+                        </td>
+                        <td className="px-4 py-3 text-gray-700">{nomesTipoProcesso[processo.tipo]}</td>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${coresStatusProcesso[processo.status]}`}>
+                              {nomesStatusProcesso[processo.status]}
                             </span>
-                          )}
-                          {venceHoje && (
-                            <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">
-                              Hoje
-                            </span>
-                          )}
-                        </div>
-                      </td>
-                      <td className="px-4 py-3 text-gray-700">
-                        {editandoDataPrazoId === processo.id ? (
-                          <div className="flex items-center gap-2">
-                            <input
-                              type="date"
-                              value={novaDataPrazo}
-                              onChange={(e) => setNovaDataPrazo(e.target.value)}
-                              className="border border-blue-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                            />
-                            <button
-                              onClick={() => salvarDataPrazo(processo.id)}
-                              disabled={!novaDataPrazo}
-                              className="px-2 py-1 text-xs font-medium bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50"
-                            >
-                              ✓
-                            </button>
-                            <button
+                            {vencido && (
+                              <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-red-100 text-red-700 flex items-center gap-1">
+                                <AlertTriangle className="w-3 h-3" />
+                                {Math.abs(diasRestantes!)}d
+                              </span>
+                            )}
+                            {venceHoje && (
+                              <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">
+                                Hoje
+                              </span>
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-4 py-3 text-gray-700">
+                          {editandoDataPrazoId === processo.id ? (
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="date"
+                                value={novaDataPrazo}
+                                onChange={(e) => setNovaDataPrazo(e.target.value)}
+                                className="border border-blue-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                              />
+                              <button
+                                onClick={() => salvarDataPrazo(processo.id)}
+                                disabled={!novaDataPrazo}
+                                className="px-2 py-1 text-xs font-medium bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50"
+                              >
+                                ✓
+                              </button>
+                              <button
+                                onClick={() => {
+                                  setEditandoDataPrazoId(null)
+                                  setNovaDataPrazo('')
+                                }}
+                                className="px-2 py-1 text-xs font-medium bg-gray-300 text-gray-700 rounded hover:bg-gray-400"
+                              >
+                                ✕
+                              </button>
+                            </div>
+                          ) : (
+                            <div
                               onClick={() => {
-                                setEditandoDataPrazoId(null)
-                                setNovaDataPrazo('')
+                                setEditandoDataPrazoId(processo.id)
+                                setNovaDataPrazo(dataParaInput(processo.dataPrazo))
                               }}
-                              className="px-2 py-1 text-xs font-medium bg-gray-300 text-gray-700 rounded hover:bg-gray-400"
+                              className="cursor-pointer hover:bg-blue-50 px-2 py-1 rounded transition-colors"
+                              title="Clique para editar"
                             >
-                              ✕
+                              {processo.dataPrazo ? formatarData(processo.dataPrazo) : '-'}
+                            </div>
+                          )}
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex justify-end gap-1">
+                            <button
+                              onClick={() => void abrirCredenciais(processo)}
+                              title="Ver credenciais"
+                              className="p-1.5 text-amber-600 hover:bg-amber-50 rounded-lg transition-colors"
+                            >
+                              <Eye className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() => setDetalhesId(processo.id)}
+                              title="Ver documentos"
+                              className="p-1.5 text-purple-600 hover:bg-purple-50 rounded-lg transition-colors"
+                            >
+                              <ClipboardList className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() => abrirModalEditar(processo)}
+                              title="Editar"
+                              className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                            >
+                              <Edit2 className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() => setProcessoParaExcluir({ id: processo.id, numero: processo.numero || 'este processo' })}
+                              title="Excluir"
+                              className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                            >
+                              <Trash2 className="w-4 h-4" />
                             </button>
                           </div>
-                        ) : (
-                          <div 
-                            onClick={() => {
-                              setEditandoDataPrazoId(processo.id)
-                              setNovaDataPrazo(dataParaInput(processo.dataPrazo))
-                            }}
-                            className="cursor-pointer hover:bg-blue-50 px-2 py-1 rounded transition-colors"
-                            title="Clique para editar"
-                          >
-                            {processo.dataPrazo ? formatarData(processo.dataPrazo) : '-'}
-                          </div>
-                        )}
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="flex justify-end gap-1">
-                          <button
-                            onClick={() => void abrirCredenciais(processo)}
-                            title="Ver credenciais"
-                            className="p-1.5 text-amber-600 hover:bg-amber-50 rounded-lg transition-colors"
-                          >
-                            <Eye className="w-4 h-4" />
-                          </button>
-                          <button
-                            onClick={() => setDetalhesId(processo.id)}
-                            title="Ver documentos"
-                            className="p-1.5 text-purple-600 hover:bg-purple-50 rounded-lg transition-colors"
-                          >
-                            <ClipboardList className="w-4 h-4" />
-                          </button>
-                          <button
-                            onClick={() => abrirModalEditar(processo)}
-                            title="Editar"
-                            className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                          >
-                            <Edit2 className="w-4 h-4" />
-                          </button>
-                          <button
-                            onClick={() => setProcessoParaExcluir({ id: processo.id, numero: processo.numero || 'este processo' })}
-                            title="Excluir"
-                            className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
       )}
@@ -923,7 +1017,8 @@ export const Processos: React.FC<ProcessosProps> = ({ pessoaIdInicial }) => {
       />
 
       {/* Painel flutuante - Ações rápidas */}
-      <div className="fixed bottom-6 right-6 flex flex-col gap-3 z-40">
+      {!mostraModal && !mostraCriarPessoa && !credenciais && (
+      <div className="fixed bottom-4 sm:bottom-6 right-4 sm:right-6 flex flex-col gap-3 z-40">
         <button
           onClick={irParaTopo}
           className="bg-red-600 hover:bg-red-700 text-white p-4 rounded-full shadow-lg hover:shadow-xl transition-all duration-200 flex items-center justify-center group"
@@ -945,6 +1040,7 @@ export const Processos: React.FC<ProcessosProps> = ({ pessoaIdInicial }) => {
           </span>
         </button>
       </div>
+      )}
     </div>
   )
 }

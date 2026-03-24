@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import type { Pessoa } from '../types/models'
 import { usePessoasStore } from '../stores/pessoasStore'
-import { Input, Button, Alert, ConfirmDialog } from '../components'
+import { Input, Button, Alert, ConfirmDialog, PageHeader, Skeleton, BackgroundSyncBadge } from '../components'
 import { formatarCPF, formatarTelefone } from '../utils/constants'
 import { obterMensagemErro } from '../utils/robustness'
 import { validarPessoaFormulario } from '../utils/validation'
@@ -14,7 +14,7 @@ interface PessoasProps {
 const FORM_INICIAL = { nome: '', cpf: '', senhaGov: '', telefone: '', email: '', endereco: '', ativo: true }
 
 export const Pessoas: React.FC<PessoasProps> = ({ onNovoProcesso }) => {
-  const { pessoas, carregarPessoas, adicionarPessoa, atualizarPessoa, deletarPessoa, erro } = usePessoasStore()
+  const { pessoas, carregarPessoas, adicionarPessoa, atualizarPessoa, deletarPessoa, erro, carregando } = usePessoasStore()
   const [mostraModal, setMostraModal] = useState(false)
   const [editandoId, setEditandoId] = useState<string | null>(null)
   const [busca, setBusca] = useState('')
@@ -25,7 +25,7 @@ export const Pessoas: React.FC<PessoasProps> = ({ onNovoProcesso }) => {
   const [mostrarTopoBtn, setMostrarTopoBtn] = useState(false)
   const [mostraSenha, setMostraSenha] = useState(false)
 
-  useEffect(() => { void carregarPessoas() }, [])
+  useEffect(() => { void carregarPessoas() }, [carregarPessoas])
   useEffect(() => {
     const fn = () => setMostrarTopoBtn(window.scrollY > 300)
     window.addEventListener('scroll', fn)
@@ -37,6 +37,8 @@ export const Pessoas: React.FC<PessoasProps> = ({ onNovoProcesso }) => {
       p.nome.toLowerCase().includes(busca.toLowerCase()) ||
       p.cpf.includes(busca.replace(/\D/g, '')),
   )
+  const carregandoInicial = carregando && pessoas.length === 0
+  const atualizandoEmSegundoPlano = carregando && !carregandoInicial
 
   const abrirModalNovo = () => {
     setFormData(FORM_INICIAL)
@@ -103,30 +105,30 @@ export const Pessoas: React.FC<PessoasProps> = ({ onNovoProcesso }) => {
   return (
     <div className="space-y-6">
       {/* Cabeçalho */}
-      <div className="bg-gradient-to-r from-zinc-950 via-red-950 to-black rounded-xl shadow-lg p-8 text-white border border-red-900/70">
-        <div className="flex items-center justify-between gap-4 flex-wrap">
-          <div className="flex items-center gap-4">
-            <div className="bg-red-900/50 rounded-lg p-3 border border-red-800/70">
-              <Users className="w-8 h-8" />
-            </div>
-            <div>
-              <h1 className="text-3xl font-bold">Pessoas</h1>
-              <p className="text-red-200 mt-1">{pessoas.length} pessoa(s) cadastrada(s)</p>
-            </div>
+      <PageHeader
+        icon={<Users className="w-8 h-8" />}
+        title="Pessoas"
+        subtitle={`${pessoas.length} pessoa(s) cadastrada(s)`}
+        actions={
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            <BackgroundSyncBadge active={atualizandoEmSegundoPlano} />
+            <Button
+              onClick={abrirModalNovo}
+              className="inline-flex items-center"
+            >
+              <Plus className="w-4 h-4" />
+              Nova Pessoa
+            </Button>
           </div>
-          <Button onClick={abrirModalNovo} className="bg-white/10 border border-white/20 hover:bg-white/20 text-white">
-            <Plus className="w-5 h-5" />
-            Nova Pessoa
-          </Button>
-        </div>
-      </div>
+        }
+      />
 
       {/* Alertas */}
       {mensagem && <Alert type={mensagem.tipo} message={mensagem.texto} onClose={() => setMensagem(null)} />}
       {erro && <Alert type="error" message={erro} />}
 
       {/* Busca */}
-      <div className="bg-white rounded-xl shadow p-4">
+      <div className="bg-white rounded-2xl shadow-sm ring-1 ring-black/5 p-4">
         <div className="relative">
           <Search className="absolute left-3 top-3 w-4 h-4 text-gray-400" />
           <input
@@ -142,9 +144,21 @@ export const Pessoas: React.FC<PessoasProps> = ({ onNovoProcesso }) => {
         )}
       </div>
 
+      {carregandoInicial && (
+        <div className="space-y-3">
+          {Array.from({ length: 4 }).map((_, idx) => (
+            <div key={`pessoa-skeleton-${idx}`} className="bg-white rounded-2xl shadow-sm ring-1 ring-black/5 p-4 space-y-3">
+              <Skeleton className="h-5 w-2/3" />
+              <Skeleton className="h-4 w-1/3" />
+              <Skeleton className="h-4 w-1/2" />
+            </div>
+          ))}
+        </div>
+      )}
+
       {/* Lista */}
-      {pessoasFiltradas.length === 0 ? (
-        <div className="bg-white rounded-xl shadow p-10 text-center text-gray-500">
+      {!carregandoInicial && pessoasFiltradas.length === 0 ? (
+        <div className="bg-white rounded-2xl shadow-sm ring-1 ring-black/5 p-10 text-center text-gray-500">
           <Users className="w-12 h-12 mx-auto mb-3 text-gray-300" />
           <p className="font-medium">{busca ? 'Nenhuma pessoa encontrada' : 'Nenhuma pessoa cadastrada'}</p>
           {!busca && (
@@ -155,53 +169,90 @@ export const Pessoas: React.FC<PessoasProps> = ({ onNovoProcesso }) => {
           )}
         </div>
       ) : (
-        <div className="bg-white rounded-xl shadow border border-gray-100 overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="bg-gray-50 border-b border-gray-200">
-              <tr>
-                <th className="text-left font-semibold text-gray-700 px-4 py-3">Nome</th>
-                <th className="text-left font-semibold text-gray-700 px-4 py-3">CPF</th>
-                <th className="text-left font-semibold text-gray-700 px-4 py-3">Telefone</th>
-                <th className="text-right font-semibold text-gray-700 px-4 py-3">Ações</th>
-              </tr>
-            </thead>
-            <tbody>
-              {pessoasFiltradas.map((pessoa) => (
-                <tr key={pessoa.id} className="border-b last:border-b-0 border-gray-100 hover:bg-gray-50 transition-colors">
-                  <td className="px-4 py-3 text-gray-900 font-medium">{pessoa.nome}</td>
-                  <td className="px-4 py-3 text-gray-600 font-mono">{pessoa.cpf}</td>
-                  <td className="px-4 py-3 text-gray-600">{pessoa.telefone || '-'}</td>
-                  <td className="px-4 py-3">
-                    <div className="flex items-center justify-end gap-1">
-                      {onNovoProcesso && (
-                        <button
-                          onClick={() => onNovoProcesso(pessoa.id)}
-                          title="Novo processo para esta pessoa"
-                          className="p-1.5 text-green-600 hover:bg-green-50 rounded-lg transition-colors"
-                        >
-                          <FilePlus2 className="w-4 h-4" />
-                        </button>
-                      )}
-                      <button
-                        onClick={() => abrirModalEditar(pessoa)}
-                        title="Editar"
-                        className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                      >
-                        <Edit2 className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={() => setPessoaParaExcluir({ id: pessoa.id, nome: pessoa.nome })}
-                        title="Excluir"
-                        className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </td>
+        <div className="space-y-3">
+          <div className="md:hidden space-y-3">
+            {pessoasFiltradas.map((pessoa) => (
+              <div key={pessoa.id} className="bg-white rounded-2xl shadow-sm ring-1 ring-black/5 p-4">
+                <p className="text-gray-900 font-semibold">{pessoa.nome}</p>
+                <p className="text-xs text-gray-500 font-mono mt-1">{pessoa.cpf}</p>
+                <p className="text-sm text-gray-600 mt-2">Telefone: {pessoa.telefone || '-'}</p>
+                <div className="flex items-center justify-end gap-1 mt-3">
+                  {onNovoProcesso && (
+                    <button
+                      onClick={() => onNovoProcesso(pessoa.id)}
+                      title="Novo processo para esta pessoa"
+                      className="p-1.5 text-green-600 hover:bg-green-50 rounded-lg transition-colors"
+                    >
+                      <FilePlus2 className="w-4 h-4" />
+                    </button>
+                  )}
+                  <button
+                    onClick={() => abrirModalEditar(pessoa)}
+                    title="Editar"
+                    className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                  >
+                    <Edit2 className="w-4 h-4" />
+                  </button>
+                  <button
+                    onClick={() => setPessoaParaExcluir({ id: pessoa.id, nome: pessoa.nome })}
+                    title="Excluir"
+                    className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className="hidden md:block bg-white rounded-2xl shadow-sm ring-1 ring-black/5 overflow-x-auto">
+            <table className="w-full min-w-[680px] text-sm">
+              <thead className="bg-gray-50 border-b border-gray-200">
+                <tr>
+                  <th className="text-left font-semibold text-gray-700 px-4 py-3">Nome</th>
+                  <th className="text-left font-semibold text-gray-700 px-4 py-3">CPF</th>
+                  <th className="text-left font-semibold text-gray-700 px-4 py-3">Telefone</th>
+                  <th className="text-right font-semibold text-gray-700 px-4 py-3">Ações</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {pessoasFiltradas.map((pessoa) => (
+                  <tr key={pessoa.id} className="border-b last:border-b-0 border-gray-100 hover:bg-gray-50 transition-colors">
+                    <td className="px-4 py-3 text-gray-900 font-medium">{pessoa.nome}</td>
+                    <td className="px-4 py-3 text-gray-600 font-mono">{pessoa.cpf}</td>
+                    <td className="px-4 py-3 text-gray-600">{pessoa.telefone || '-'}</td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center justify-end gap-1">
+                        {onNovoProcesso && (
+                          <button
+                            onClick={() => onNovoProcesso(pessoa.id)}
+                            title="Novo processo para esta pessoa"
+                            className="p-1.5 text-green-600 hover:bg-green-50 rounded-lg transition-colors"
+                          >
+                            <FilePlus2 className="w-4 h-4" />
+                          </button>
+                        )}
+                        <button
+                          onClick={() => abrirModalEditar(pessoa)}
+                          title="Editar"
+                          className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                        >
+                          <Edit2 className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => setPessoaParaExcluir({ id: pessoa.id, nome: pessoa.nome })}
+                          title="Excluir"
+                          className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 

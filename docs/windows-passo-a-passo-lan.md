@@ -185,6 +185,20 @@ Depois copie a pasta para o host definitivo.
 3. Confirme backup diario no fim do dia em `backups\\db`.
 4. Uma vez por semana copie os arquivos `.zip` para nuvem ou pendrive.
 
+## 10.2 Melhorias recentes (UX e confiabilidade)
+
+As versoes recentes incluem melhorias para uso em rede local:
+
+- Indicador discreto `Atualizando...` nas telas principais (Dashboard, Pessoas, Processos e Detalhe do Processo) durante sincronizacao em segundo plano.
+- O indicador possui atraso curto de exibicao para evitar piscadas em sincronizacoes muito rapidas.
+- Estados de carregamento inicial com skeleton para reduzir sensacao de travamento sem perder contexto visual.
+- Testes UI automatizados cobrindo navegacao principal, filtros de processos e comportamento do badge de sincronizacao.
+
+Em ambiente LAN, o comportamento esperado e:
+
+- Ao abrir as telas, pode haver carregamento inicial com skeleton.
+- Em atualizacoes periodicas, o conteudo permanece visivel e o indicador `Atualizando...` aparece apenas quando o refresh demora mais que o atraso configurado.
+
 ## 10.1 Checklist de validacao em 3 PCs (host + 2 clientes)
 
 Use este roteiro para validar em producao sem pular etapas.

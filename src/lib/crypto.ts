@@ -19,14 +19,6 @@ const subtleDisponivel = (): boolean =>
 const bytesParaHex = (bytes: Uint8Array): string =>
   Array.from(bytes).map((b) => b.toString(16).padStart(2, '0')).join('')
 
-const hexParaBytes = (hex: string): Uint8Array => {
-  const bytes = new Uint8Array(Math.floor(hex.length / 2))
-  for (let i = 0; i < bytes.length; i++) {
-    bytes[i] = Number.parseInt(hex.slice(i * 2, i * 2 + 2), 16)
-  }
-  return bytes
-}
-
 const fnv1a32 = (valor: string): number => {
   let hash = 0x811c9dc5
   for (let i = 0; i < valor.length; i++) {

@@ -59,7 +59,7 @@ function AppInner() {
         setEstadoAcesso('setup')
       })
       .catch(() => setEstadoAcesso('setup'))
-  }, [])
+  }, [obterConfiguracao])
 
   useEffect(() => {
     if (estadoAcesso !== 'desbloqueado') return
@@ -303,6 +303,18 @@ function AppInner() {
                 {item.label}
               </button>
             ))}
+            <button
+              className="w-full mt-2 flex items-center gap-3 px-3 py-3 rounded-lg text-sm font-medium text-white/70 hover:text-white hover:bg-white/10"
+              onClick={() => {
+                setMenuAberto(false)
+                setEstadoAcesso('bloqueado')
+                setPinInput('')
+                setErroPin('')
+              }}
+            >
+              <Lock className="w-5 h-5" />
+              Bloquear
+            </button>
           </div>
         )}
       </header>

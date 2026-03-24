@@ -1,12 +1,12 @@
 import React, { useEffect, useMemo } from 'react'
 import { Users, FileText, CheckCircle, AlertCircle, BarChart3, Settings, Bell } from 'lucide-react'
-import { Button } from '../components'
+import { Button, PageHeader, Skeleton, BackgroundSyncBadge } from '../components'
 import { usePessoasStore } from '../stores/pessoasStore'
 import { useProcessosStore } from '../stores/processosStore'
+import { useConfiguracoesStore } from '../stores/configuracoesStore'
 import { StatusProcesso } from '../types/models'
 import { formatarData, calcularDiasRestantes } from '../utils/constants'
 
-const CHAVE_ULTIMO_BACKUP = 'aguia_gestao_ultimo_backup'
 const MS_POR_DIA = 1000 * 60 * 60 * 24
 
 interface DashboardProps {
@@ -14,13 +14,29 @@ interface DashboardProps {
 }
 
 export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
-  const { pessoas, carregarPessoas } = usePessoasStore()
-  const { processos, carregarProcessos } = useProcessosStore()
+  const { pessoas, carregarPessoas, carregando: carregandoPessoas } = usePessoasStore()
+  const { processos, carregarProcessos, carregando: carregandoProcessos } = useProcessosStore()
+  const { obterConfiguracao } = useConfiguracoesStore()
+  const [ultimoBackup, setUltimoBackup] = React.useState<string | null>(null)
+  const carregandoInicial = Boolean(carregandoPessoas || carregandoProcessos) && pessoas.length === 0 && processos.length === 0
+  const atualizandoEmSegundoPlano = Boolean(carregandoPessoas || carregandoProcessos) && !carregandoInicial
 
   useEffect(() => {
     void carregarPessoas()
     void carregarProcessos()
-  }, [])
+  }, [carregarPessoas, carregarProcessos])
+
+  useEffect(() => {
+    const carregarUltimoBackup = async () => {
+      try {
+        const valor = await obterConfiguracao('ultimoBackup')
+        setUltimoBackup(typeof valor === 'string' && valor.trim() ? valor : null)
+      } catch {
+        setUltimoBackup(null)
+      }
+    }
+    void carregarUltimoBackup()
+  }, [obterConfiguracao])
 
   const stats = useMemo(() => {
     const total = processos.length
@@ -40,7 +56,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
     return { total, abertos, deferidos, restituidos, vencidos, percentualAprovacao }
   }, [processos])
 
-  const ultimoBackup = localStorage.getItem(CHAVE_ULTIMO_BACKUP)
   const diasSemBackup = ultimoBackup
     ? Math.floor((Date.now() - new Date(ultimoBackup).getTime()) / MS_POR_DIA)
     : null
@@ -56,26 +71,36 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
   return (
     <div className="space-y-6">
       {/* Cabeçalho */}
-      <div className="bg-gradient-to-r from-zinc-950 via-red-950 to-black rounded-xl shadow-lg p-8 text-white border border-red-900/70">
-        <div className="flex items-center justify-between flex-wrap gap-4">
-          <div>
-            <h1 className="text-3xl font-bold">Águia Gestão</h1>
-            <p className="text-red-200 mt-1">Sistema de Gestão de Processos Administrativos</p>
-          </div>
-          <div className="flex items-center gap-3">
-            {diasSemBackup !== null && diasSemBackup >= 7 && (
+      <PageHeader
+        icon={<BarChart3 className="w-8 h-8" />}
+        title="Águia Gestão"
+        subtitle="Sistema de Gestão de Processos Administrativos"
+        actions={
+          <div className="flex flex-wrap items-center gap-2">
+            <BackgroundSyncBadge active={atualizandoEmSegundoPlano} />
+            {diasSemBackup !== null && diasSemBackup >= 7 ? (
               <div className="flex items-center gap-2 bg-yellow-500/20 border border-yellow-400/50 rounded-lg px-3 py-2 text-yellow-200 text-xs">
                 <Bell className="w-4 h-4" />
                 Backup há {diasSemBackup} dias — faça um agora!
               </div>
-            )}
+            ) : null}
           </div>
-        </div>
-      </div>
+        }
+      />
 
       {/* Cards KPI */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div className="bg-white rounded-xl shadow p-5 border-t-4 border-blue-500">
+      {carregandoInicial ? (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {Array.from({ length: 4 }).map((_, idx) => (
+            <div key={`kpi-skeleton-${idx}`} className="bg-white rounded-2xl shadow-sm ring-1 ring-black/5 p-5">
+              <Skeleton className="h-4 w-24 mb-3" />
+              <Skeleton className="h-8 w-16" />
+            </div>
+          ))}
+        </div>
+      ) : (
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="bg-white rounded-2xl shadow-sm ring-1 ring-black/5 p-5 border-t-4 border-blue-500 hover:shadow-md transition-shadow">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-xs text-gray-500 uppercase tracking-wide font-semibold">Pessoas</p>
@@ -84,7 +109,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
             <Users className="w-8 h-8 text-blue-400" />
           </div>
         </div>
-        <div className="bg-white rounded-xl shadow p-5 border-t-4 border-purple-500">
+        <div className="bg-white rounded-2xl shadow-sm ring-1 ring-black/5 p-5 border-t-4 border-purple-500 hover:shadow-md transition-shadow">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-xs text-gray-500 uppercase tracking-wide font-semibold">Processos</p>
@@ -93,7 +118,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
             <FileText className="w-8 h-8 text-purple-400" />
           </div>
         </div>
-        <div className="bg-white rounded-xl shadow p-5 border-t-4 border-green-500">
+        <div className="bg-white rounded-2xl shadow-sm ring-1 ring-black/5 p-5 border-t-4 border-green-500 hover:shadow-md transition-shadow">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-xs text-gray-500 uppercase tracking-wide font-semibold">Deferidos</p>
@@ -102,7 +127,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
             <CheckCircle className="w-8 h-8 text-green-400" />
           </div>
         </div>
-        <div className="bg-white rounded-xl shadow p-5 border-t-4 border-red-500">
+        <div className="bg-white rounded-2xl shadow-sm ring-1 ring-black/5 p-5 border-t-4 border-red-500 hover:shadow-md transition-shadow">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-xs text-gray-500 uppercase tracking-wide font-semibold">Vencidos</p>
@@ -112,6 +137,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
           </div>
         </div>
       </div>
+      )}
 
       {/* Alerta de backup */}
       {diasSemBackup === null && (
@@ -128,11 +154,27 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
       )}
 
       {/* Resumo e Ações rápidas */}
+      {carregandoInicial ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="bg-white rounded-2xl shadow-sm ring-1 ring-black/5 p-6 space-y-3">
+            <Skeleton className="h-5 w-28" />
+            <Skeleton className="h-4 w-full" />
+            <Skeleton className="h-3 w-full" />
+            <Skeleton className="h-4 w-2/3" />
+          </div>
+          <div className="bg-white rounded-2xl shadow-sm ring-1 ring-black/5 p-6 space-y-3">
+            <Skeleton className="h-5 w-36" />
+            <Skeleton className="h-10 w-full" />
+            <Skeleton className="h-10 w-full" />
+            <Skeleton className="h-10 w-full" />
+          </div>
+        </div>
+      ) : (
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div className="bg-white rounded-xl shadow p-6">
+        <div className="bg-white rounded-2xl shadow-sm ring-1 ring-black/5 p-6">
           <div className="flex items-center gap-2 mb-4">
             <BarChart3 className="w-5 h-5 text-gray-600" />
-            <h2 className="text-lg font-semibold text-gray-900">Resumo</h2>
+            <h2 className="text-lg font-semibold tracking-tight text-gray-900">Resumo</h2>
           </div>
           <div className="space-y-3">
             <div className="flex justify-between items-center text-sm">
@@ -152,8 +194,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
           </div>
         </div>
 
-        <div className="bg-white rounded-xl shadow p-6">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">Ações Rápidas</h2>
+        <div className="bg-white rounded-2xl shadow-sm ring-1 ring-black/5 p-6">
+          <h2 className="text-lg font-semibold tracking-tight text-gray-900 mb-4">Ações Rápidas</h2>
           <div className="space-y-2">
             <Button variant="primary" className="w-full justify-start" onClick={() => onNavigate('pessoas')}>
               <Users className="w-4 h-4" />
@@ -170,11 +212,12 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
           </div>
         </div>
       </div>
+      )}
 
       {/* Processos recentes */}
-      {processosRecentes.length > 0 && (
-        <div className="bg-white rounded-xl shadow p-6">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">Processos Recentes</h2>
+      {processosRecentes.length > 0 ? (
+        <div className="bg-white rounded-2xl shadow-sm ring-1 ring-black/5 p-6">
+          <h2 className="text-lg font-semibold tracking-tight text-gray-900 mb-4">Processos Recentes</h2>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
@@ -195,6 +238,12 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
               </tbody>
             </table>
           </div>
+        </div>
+      ) : (
+        <div className="bg-white rounded-2xl shadow-sm ring-1 ring-black/5 p-6 text-center text-gray-500">
+          <p className="font-medium">Nenhum processo cadastrado ainda</p>
+          <p className="text-sm mt-1">Cadastre um processo para começar a acompanhar pelo dashboard.</p>
+          <Button className="mt-4" onClick={() => onNavigate('processos')}>Ir para Processos</Button>
         </div>
       )}
     </div>

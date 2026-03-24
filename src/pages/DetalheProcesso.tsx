@@ -1,14 +1,13 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { TipoProcesso, StatusProcesso, StatusDocumento } from '../types/models'
-import type { DocumentoProcesso, Processo } from '../types/models'
+import type { DocumentoProcesso } from '../types/models'
 import { useDocumentosStore } from '../stores/documentosStore'
 import { useProcessosStore } from '../stores/processosStore'
 import { usePessoasStore } from '../stores/pessoasStore'
-import { Button, Alert } from '../components'
+import { Button, Alert, PageHeader, Skeleton, BackgroundSyncBadge } from '../components'
 import {
   nomesTipoProcesso,
   nomesStatusProcesso,
-  coresStatusProcesso,
   nomesStatusDocumento,
   coresStatusDocumento,
   formatarData,
@@ -172,6 +171,7 @@ export const DetalheProcesso: React.FC<DetalheProcessoProps> = ({ processoId, on
   const { pessoas, carregarPessoas } = usePessoasStore()
   const {
     documentosProcesso,
+    carregando: carregandoDocumentos,
     carregarDocumentosPorProcesso,
     adicionarDocumentoProcesso,
     atualizarDocumentoProcesso,
@@ -186,12 +186,14 @@ export const DetalheProcesso: React.FC<DetalheProcessoProps> = ({ processoId, on
 
   const processo = processos.find((p) => p.id === processoId)
   const pessoa = processo ? pessoas.find((pe) => pe.id === processo.pessoaId) : undefined
+  const carregandoInicialChecklist = Boolean(carregandoDocumentos) && documentosProcesso.length === 0
+  const atualizandoEmSegundoPlano = Boolean(carregandoDocumentos) && !carregandoInicialChecklist
 
   useEffect(() => {
     void carregarProcessos()
     void carregarPessoas()
     void carregarDocumentosPorProcesso(processoId)
-  }, [processoId])
+  }, [processoId, carregarProcessos, carregarPessoas, carregarDocumentosPorProcesso])
 
   useEffect(() => {
     const sincronizar = () => {
@@ -309,7 +311,7 @@ export const DetalheProcesso: React.FC<DetalheProcessoProps> = ({ processoId, on
       sincronizacaoEmAndamentoRef.current = false
       setSincronizando(false)
     }
-  }, [processo, processoId, carregarDocumentosPorProcesso, adicionarDocumentoProcesso, deletarDocumentoProcesso])
+  }, [processo, processoId, carregarDocumentosPorProcesso, adicionarDocumentoProcesso, deletarDocumentoProcesso, atualizarDocumentoProcesso])
 
   // Ao abrir detalhe, sincroniza automaticamente uma vez para corrigir checklist.
   useEffect(() => {
@@ -340,7 +342,7 @@ export const DetalheProcesso: React.FC<DetalheProcessoProps> = ({ processoId, on
     if (todosConcluidos) {
       void atualizarStatusProcesso(processoId, StatusProcesso.PRONTO_PARA_PROTOCOLO)
     }
-  }, [documentosProcesso, processo])
+  }, [documentosProcesso, processo, atualizarStatusProcesso, processoId])
 
   const handleStatusDoc = async (docId: string, novoStatus: StatusDocumento) => {
     try {
@@ -389,35 +391,25 @@ export const DetalheProcesso: React.FC<DetalheProcessoProps> = ({ processoId, on
   return (
     <div className="space-y-6">
       {/* Cabeçalho */}
-      <div className="bg-gradient-to-r from-zinc-950 via-red-950 to-black rounded-xl shadow-lg p-6 text-white border border-red-900/70">
-        <div className="flex items-start gap-4 flex-wrap">
-          {onVoltar && (
-            <button onClick={onVoltar} className="mt-1 text-white/70 hover:text-white transition-colors">
-              <ArrowLeft className="w-6 h-6" />
+      <PageHeader
+        icon={
+          onVoltar ? (
+            <button onClick={onVoltar} className="text-white/70 hover:text-white transition-colors" title="Voltar">
+              <ArrowLeft className="w-8 h-8" />
             </button>
-          )}
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 mb-1 flex-wrap">
-              <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${coresStatusProcesso[processo.status]}`}>
-                {nomesStatusProcesso[processo.status]}
-              </span>
-            </div>
-            <h1 className="text-2xl font-bold">{nomesTipoProcesso[processo.tipo]}</h1>
-            <p className="text-red-200 mt-1">
-              {pessoa?.nome} · {pessoa?.cpf}
-              {processo.numero && ` · Nº ${processo.numero}`}
-            </p>
-            {processo.dataPrazo && (
-              <p className="text-red-300 text-sm mt-0.5">
-                Prazo: {formatarData(processo.dataPrazo)}
-              </p>
-            )}
-          </div>
-          <div className="flex gap-2">
+          ) : (
+            <ArrowLeft className="w-8 h-8" />
+          )
+        }
+        title={nomesTipoProcesso[processo.tipo]}
+        subtitle={`${pessoa?.nome || 'Pessoa não encontrada'} · ${pessoa?.cpf || '-'}${processo.numero ? ` · Nº ${processo.numero}` : ''}${processo.dataPrazo ? ` · Prazo: ${formatarData(processo.dataPrazo)}` : ''}`}
+        actions={
+          <div className="flex gap-2 flex-wrap">
+            <BackgroundSyncBadge active={atualizandoEmSegundoPlano} />
             <button
               onClick={imprimirChecklist}
               title="Imprimir checklist"
-              className="flex items-center gap-1 text-sm bg-white/10 border border-white/20 hover:bg-white/20 px-3 py-1.5 rounded-lg transition-colors"
+              className="flex items-center gap-1 text-xs sm:text-sm bg-white/10 border border-white/20 hover:bg-white/20 px-3 py-1.5 rounded-lg transition-colors"
             >
               <Printer className="w-4 h-4" />
               Imprimir
@@ -426,19 +418,19 @@ export const DetalheProcesso: React.FC<DetalheProcessoProps> = ({ processoId, on
               onClick={() => void sincronizarChecklist()}
               disabled={sincronizando}
               title="Sincronizar checklist"
-              className="flex items-center gap-1 text-sm bg-white/10 border border-white/20 hover:bg-white/20 px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50"
+              className="flex items-center gap-1 text-xs sm:text-sm bg-white/10 border border-white/20 hover:bg-white/20 px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50"
             >
               <RefreshCw className={`w-4 h-4 ${sincronizando ? 'animate-spin' : ''}`} />
               Sincronizar
             </button>
           </div>
-        </div>
-      </div>
+        }
+      />
 
       {mensagem && <Alert type={mensagem.tipo} message={mensagem.texto} onClose={() => setMensagem(null)} />}
 
       {/* Barra de progresso */}
-      <div className="bg-white rounded-xl shadow p-5">
+      <div className="bg-white rounded-2xl shadow-sm ring-1 ring-black/5 p-5">
         <div className="flex items-center justify-between mb-2">
           <p className="text-sm font-medium text-gray-700">Progresso da documentação</p>
           <p className="text-sm font-bold text-gray-900">{concluidos}/{total} ({porcentagem}%)</p>
@@ -457,11 +449,18 @@ export const DetalheProcesso: React.FC<DetalheProcessoProps> = ({ processoId, on
       </div>
 
       {/* Checklist */}
-      <div className="bg-white rounded-xl shadow overflow-hidden">
+      <div className="bg-white rounded-2xl shadow-sm ring-1 ring-black/5 overflow-hidden">
         <div className="px-5 py-4 border-b border-gray-100 bg-gray-50">
           <h2 className="font-semibold text-gray-800">Documentos exigidos</h2>
         </div>
-        {documentosProcesso.length === 0 ? (
+        {carregandoInicialChecklist ? (
+          <div className="p-8 space-y-3">
+            <Skeleton className="h-5 w-2/3" />
+            <Skeleton className="h-4 w-1/2" />
+            <Skeleton className="h-4 w-3/4" />
+            <Skeleton className="h-4 w-2/3" />
+          </div>
+        ) : documentosProcesso.length === 0 ? (
           <div className="p-8 text-center text-gray-500">
             <RefreshCw className={`w-10 h-10 mx-auto mb-3 text-gray-300 ${sincronizando ? 'animate-spin' : ''}`} />
             <p>{sincronizando ? 'Sincronizando...' : 'Nenhum documento encontrado'}</p>
