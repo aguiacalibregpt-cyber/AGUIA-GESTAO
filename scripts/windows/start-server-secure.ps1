@@ -34,6 +34,35 @@ function Write-Log {
   Write-Host $Message
 }
 
+function Invoke-PnpmInstallWithRetry {
+  param(
+    [switch]$IncludeDevDependencies
+  )
+
+  $args = @('install')
+  if (-not $IncludeDevDependencies) {
+    $args += '--prod'
+  }
+
+  for ($tentativa = 1; $tentativa -le 2; $tentativa++) {
+    Write-Log "[INFO] Executando: pnpm $($args -join ' ') (tentativa $tentativa/2)"
+    & pnpm @args
+    if ($LASTEXITCODE -eq 0) {
+      return
+    }
+
+    if ($tentativa -eq 1) {
+      Write-Log "[AVISO] pnpm install falhou (codigo $LASTEXITCODE). Tentando recuperacao automatica..."
+      if (Test-Path "node_modules") {
+        cmd /c "rmdir /s /q node_modules" | Out-Null
+      }
+      & pnpm store prune | Out-Null
+    }
+  }
+
+  throw "Falha no pnpm install apos tentativas de recuperacao."
+}
+
 Write-Log "============================================"
 Write-Log "AGUIA - Inicializacao Segura do Servidor LAN"
 Write-Log "============================================"
@@ -52,10 +81,7 @@ try {
   if ($pnpm) {
     if (-not (Test-Path "node_modules")) {
       Write-Log "[INFO] Instalando dependencias..."
-      pnpm install
-      if ($LASTEXITCODE -ne 0) {
-        throw "Falha no pnpm install (codigo $LASTEXITCODE)."
-      }
+      Invoke-PnpmInstallWithRetry -IncludeDevDependencies
     }
 
     if (-not (Test-Path "dist/index.html")) {
