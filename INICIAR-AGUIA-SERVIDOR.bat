@@ -13,6 +13,7 @@ echo AGUIA - Inicializacao do Servidor LAN
 echo ============================================
 echo Pasta: %CD%
 echo.
+echo [%date% %time%] INFO: verificando pnpm...>>"%LOG_FILE%"
 
 where pnpm >nul 2>nul
 if errorlevel 1 (
@@ -48,6 +49,7 @@ if errorlevel 1 (
   echo [INFO] Iniciando servidor em http://0.0.0.0:3000
   echo [INFO] Para parar, feche esta janela.
   echo [INFO] Log: %LOG_FILE%
+  echo [%date% %time%] INFO: iniciando servidor via node .\server\index.mjs>>"%LOG_FILE%"
   echo.
   node .\server\index.mjs
   set "APP_EXIT=%errorlevel%"
@@ -63,6 +65,8 @@ if errorlevel 1 (
   exit /b 0
 )
 
+echo [%date% %time%] INFO: pnpm encontrado.>>"%LOG_FILE%"
+
 if not exist "node_modules" (
   echo [INFO] Instalando dependencias na primeira execucao...
   echo [%date% %time%] Instalando dependencias com pnpm.>>"%LOG_FILE%"
@@ -73,6 +77,9 @@ if not exist "node_modules" (
     pause
     exit /b 1
   )
+)
+if exist "node_modules" (
+  echo [%date% %time%] INFO: node_modules OK.>>"%LOG_FILE%"
 )
 
 if not exist "dist\index.html" (
@@ -86,7 +93,11 @@ if not exist "dist\index.html" (
     exit /b 1
   )
 )
+if exist "dist\index.html" (
+  echo [%date% %time%] INFO: build OK (dist\index.html encontrado).>>"%LOG_FILE%"
+)
 
+echo [%date% %time%] INFO: verificando porta 3000...>>"%LOG_FILE%"
 set "PORT_PID="
 for /f "tokens=5" %%P in ('netstat -ano ^| findstr /R /C:":3000[ ]" ^| findstr "LISTENING"') do (
   if not defined PORT_PID set "PORT_PID=%%P"
@@ -106,6 +117,7 @@ if defined PORT_PID (
 echo [INFO] Iniciando servidor em http://0.0.0.0:3000
 echo [INFO] Para parar, feche esta janela.
 echo [INFO] Log: %LOG_FILE%
+echo [%date% %time%] INFO: iniciando servidor via pnpm server...>>"%LOG_FILE%"
 echo.
 call pnpm server
 set "APP_EXIT=%errorlevel%"

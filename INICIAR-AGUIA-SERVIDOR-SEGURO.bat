@@ -2,6 +2,9 @@
 setlocal
 
 cd /d "%~dp0"
+if not exist "logs" mkdir "logs"
+echo ==================================================>>"%CD%\logs\aguia-startup-secure.log"
+echo [%date% %time%] Inicio do launcher AGUIA seguro>>"%CD%\logs\aguia-startup-secure.log"
 
 echo ============================================
 echo AGUIA - Inicializacao Segura do Servidor LAN
