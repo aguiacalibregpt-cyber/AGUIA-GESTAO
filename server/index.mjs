@@ -34,6 +34,7 @@ const ALLOWED_ORIGINS = (process.env.AGUIA_ALLOWED_ORIGINS || '')
   .split(',')
   .map((item) => item.trim())
   .filter(Boolean)
+const CORS_STRICT = process.env.AGUIA_CORS_STRICT === '1'
 
 const app = express()
 
@@ -43,14 +44,29 @@ const rateBucket = new Map()
 
 function originPermitida(origin) {
   if (!origin) return true
-  if (ALLOWED_ORIGINS.length > 0) return ALLOWED_ORIGINS.includes(origin)
-  return /^https?:\/\/(localhost|127\.0\.0\.1|192\.168\.|10\.|172\.(1[6-9]|2\d|3[0-1])\.)/i.test(origin)
+  if (ALLOWED_ORIGINS.includes(origin)) return true
+  if (CORS_STRICT && ALLOWED_ORIGINS.length > 0) return false
+
+  try {
+    const parsed = new URL(origin)
+    if (!/^https?:$/i.test(parsed.protocol)) return false
+    const host = parsed.hostname.toLowerCase()
+    if (host === 'localhost' || host === '127.0.0.1' || host === '0.0.0.0' || host === '::1' || host === '[::1]') {
+      return true
+    }
+    if (/^192\.168\./.test(host)) return true
+    if (/^10\./.test(host)) return true
+    if (/^172\.(1[6-9]|2\d|3[0-1])\./.test(host)) return true
+    return false
+  } catch {
+    return false
+  }
 }
 
 app.use(cors({
   origin: (origin, callback) => {
     if (originPermitida(origin)) return callback(null, true)
-    return callback(new Error('Origem não permitida por CORS'))
+    return callback(null, false)
   },
   methods: ['GET', 'POST', 'PUT', 'DELETE'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-AGUIA-API-TOKEN'],

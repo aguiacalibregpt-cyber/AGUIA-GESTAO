@@ -1,6 +1,6 @@
 param(
   [string]$ApiToken = "",
-  [string]$AllowedOrigins = "http://127.0.0.1:3000"
+  [string]$AllowedOrigins = "http://127.0.0.1:3000,http://localhost:3000,http://0.0.0.0:3000"
 )
 
 $ErrorActionPreference = "Stop"
