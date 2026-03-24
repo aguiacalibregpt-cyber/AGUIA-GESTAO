@@ -6,13 +6,13 @@ import { gerarId, obterMensagemErro } from '../utils/robustness'
 interface DocumentosStore {
   documentosProcesso: DocumentoProcesso[]
   carregando: boolean
+  carregandoProcessoId: string | null
   erro: string | null
   carregarDocumentosPorProcesso: (processoId: string) => Promise<void>
   adicionarDocumentoProcesso: (doc: Omit<DocumentoProcesso, 'id'>) => Promise<DocumentoProcesso>
   atualizarDocumentoProcesso: (id: string, atualizacoes: Partial<DocumentoProcesso>) => Promise<void>
   atualizarStatusDocumento: (id: string, novoStatus: StatusDocumento) => Promise<void>
   deletarDocumentoProcesso: (id: string) => Promise<void>
-  buscarDocumentoProcesso: (id: string) => Promise<DocumentoProcesso | undefined>
 }
 
 type DocumentoPersistido = Omit<DocumentoProcesso, 'dataEntrega'> & {
@@ -38,19 +38,31 @@ const serializarAtualizacao = (u: Partial<DocumentoProcesso>) => ({
 export const useDocumentosStore = create<DocumentosStore>((set, get) => ({
   documentosProcesso: [],
   carregando: false,
+  carregandoProcessoId: null,
   erro: null,
 
   carregarDocumentosPorProcesso: async (processoId) => {
-    if (get().carregando) return
-    set({ carregando: true, erro: null })
+    // Evita chamadas duplicadas para o MESMO processo
+    if (get().carregando && get().carregandoProcessoId === processoId) return
+    
+    // Inicia carregamento e marca o processo atual
+    set({ carregando: true, carregandoProcessoId: processoId, erro: null })
     try {
       const documentos = ((await api.get<DocumentoPersistido[]>(`/documentos-processo?processoId=${encodeURIComponent(processoId)}`)) ?? []).map(parseDocumento)
       documentos.sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'))
-      set({ documentosProcesso: documentos })
+      
+      // Apenas aplica se este ainda for o processo desejado (evita race condition entre cliques rápidos)
+      if (get().carregandoProcessoId === processoId) {
+        set({ documentosProcesso: documentos })
+      }
     } catch (error) {
-      set({ erro: obterMensagemErro(error, 'Erro ao carregar documentos') })
+      if (get().carregandoProcessoId === processoId) {
+        set({ erro: obterMensagemErro(error, 'Erro ao carregar documentos do processo') })
+      }
     } finally {
-      set({ carregando: false })
+      if (get().carregandoProcessoId === processoId) {
+        set({ carregando: false })
+      }
     }
   },
 
@@ -105,12 +117,4 @@ export const useDocumentosStore = create<DocumentosStore>((set, get) => ({
     }
   },
 
-  buscarDocumentoProcesso: async (id) => {
-    try {
-      return get().documentosProcesso.find((d) => d.id === id)
-    } catch (error) {
-      set({ erro: obterMensagemErro(error, 'Erro ao buscar documento') })
-      throw error
-    }
-  },
 }))

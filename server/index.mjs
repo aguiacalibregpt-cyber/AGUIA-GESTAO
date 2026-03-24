@@ -108,16 +108,16 @@ setInterval(() => {
 }, 60_000)
 
 const pessoaCreateSchema = z.object({
-  id: z.string().min(1),
-  nome: z.string().min(1),
-  cpf: z.string().min(1),
-  senhaGov: z.string().optional(),
-  telefone: z.string().optional(),
-  email: z.string().optional(),
-  endereco: z.string().optional(),
+  id: z.string().min(1).max(50),
+  nome: z.string().min(1).max(255),
+  cpf: z.string().min(1).max(20),
+  senhaGov: z.string().max(1000).optional(),
+  telefone: z.string().max(20).optional(),
+  email: z.string().max(255).optional(),
+  endereco: z.string().max(1000).optional(),
   ativo: z.boolean().optional(),
-  dataCadastro: z.string().optional(),
-  dataAtualizacao: z.string().optional(),
+  dataCadastro: z.string().max(50).optional(),
+  dataAtualizacao: z.string().max(50).optional(),
 })
 
 const pessoaUpdateSchema = pessoaCreateSchema.partial().refine((v) => Object.keys(v).length > 0, {
@@ -125,20 +125,20 @@ const pessoaUpdateSchema = pessoaCreateSchema.partial().refine((v) => Object.key
 })
 
 const processoCreateSchema = z.object({
-  id: z.string().min(1),
-  pessoaId: z.string().min(1),
-  tipo: z.string().min(1),
-  numero: z.string().optional(),
-  status: z.string().optional(),
-  dataAbertura: z.string().optional(),
-  dataPrazo: z.string().optional(),
-  dataFechamento: z.string().optional(),
-  dataRestituido: z.string().optional(),
-  dataUltimaConsulta: z.string().optional(),
-  dataCadastro: z.string().optional(),
-  dataAtualizacao: z.string().optional(),
-  descricao: z.string().optional(),
-  observacoes: z.string().optional(),
+  id: z.string().min(1).max(50),
+  pessoaId: z.string().min(1).max(50),
+  tipo: z.string().min(1).max(50),
+  numero: z.string().max(100).optional(),
+  status: z.string().max(50).optional(),
+  dataAbertura: z.string().max(50).optional(),
+  dataPrazo: z.string().max(50).optional(),
+  dataFechamento: z.string().max(50).optional(),
+  dataRestituido: z.string().max(50).optional(),
+  dataUltimaConsulta: z.string().max(50).optional(),
+  dataCadastro: z.string().max(50).optional(),
+  dataAtualizacao: z.string().max(50).optional(),
+  descricao: z.string().max(2000).optional(),
+  observacoes: z.string().max(10000).optional(),
 })
 
 const processoUpdateSchema = processoCreateSchema.partial().refine((v) => Object.keys(v).length > 0, {
@@ -146,12 +146,12 @@ const processoUpdateSchema = processoCreateSchema.partial().refine((v) => Object
 })
 
 const documentoCreateSchema = z.object({
-  id: z.string().min(1),
-  processoId: z.string().min(1),
-  nome: z.string().min(1),
-  status: z.string().optional(),
-  observacoes: z.string().optional(),
-  dataEntrega: z.string().optional(),
+  id: z.string().min(1).max(50),
+  processoId: z.string().min(1).max(50),
+  nome: z.string().min(1).max(255),
+  status: z.string().max(50).optional(),
+  observacoes: z.string().max(2000).optional(),
+  dataEntrega: z.string().max(50).optional(),
 })
 
 const documentoUpdateSchema = documentoCreateSchema.partial().refine((v) => Object.keys(v).length > 0, {
