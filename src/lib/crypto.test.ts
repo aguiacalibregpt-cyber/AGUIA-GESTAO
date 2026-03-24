@@ -14,6 +14,12 @@ describe('prefixos de criptografia', () => {
     expect(senhaGovUsaEsquemaLegado(valor)).toBe(false)
   })
 
+  it('reconhece payload v2js como criptografado e nao legado', () => {
+    const valor = 'enc:v2js:abc.def'
+    expect(senhaGovEstaCriptografada(valor)).toBe(true)
+    expect(senhaGovUsaEsquemaLegado(valor)).toBe(false)
+  })
+
   it('nao marca texto puro como criptografado', () => {
     expect(senhaGovEstaCriptografada('senha-em-texto')).toBe(false)
     expect(senhaGovUsaEsquemaLegado('senha-em-texto')).toBe(false)

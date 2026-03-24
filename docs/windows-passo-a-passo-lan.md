@@ -292,6 +292,31 @@ taskkill /PID <PID> /F
 3. Host e clientes na mesma rede.
 4. Teste ping do cliente para o host.
 
+### Nao e possivel acessar http://127.0.0.1:3000 (conexao recusada)
+
+Esse erro indica que o servidor nao esta rodando no host.
+
+No host (na pasta do projeto), execute na ordem:
+
+```powershell
+pnpm install
+pnpm build
+pnpm server
+```
+
+Importante: mantenha a janela do terminal aberta apos `pnpm server`.
+
+Se estiver usando o modo seguro por `.bat`, informe um token quando solicitado.
+Se fechar a janela ou nao informar o token, o servidor para e o localhost recusa conexao.
+
+Para confirmar se a porta esta ativa:
+
+```powershell
+netstat -ano | findstr :3000
+```
+
+Se nao aparecer `LISTENING`, o servidor nao iniciou corretamente.
+
 ### Servidor nao inicia no logon
 
 1. Abra "Agendador de Tarefas".
