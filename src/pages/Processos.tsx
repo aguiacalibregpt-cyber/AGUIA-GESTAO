@@ -462,7 +462,7 @@ export const Processos: React.FC<ProcessosProps> = ({ pessoaIdInicial }) => {
             <button
               key={v}
               onClick={() => setFiltroVenc(v)}
-              className={`text-sm px-3 py-1.5 rounded-lg border transition-colors flex-1 sm:flex-none ${filtroVenc === v ? 'bg-red-700 text-white border-red-700' : 'border-gray-300 hover:bg-gray-50'}`}
+              className={`text-sm px-2 py-1.5 rounded-lg border transition-colors flex-1 sm:flex-none ${filtroVenc === v ? 'bg-red-700 text-white border-red-700' : 'border-gray-300 hover:bg-gray-50'}`}
             >
               {v === 'todos' ? 'Todos prazos' : v === 'vencidos' ? 'Vencidos' : v === 'hoje' ? 'Vence hoje' : 'Esta semana'}
             </button>
@@ -472,7 +472,7 @@ export const Processos: React.FC<ProcessosProps> = ({ pessoaIdInicial }) => {
           <button
             onClick={limparFiltros}
             disabled={!busca && filtroStatus === 'todos' && filtroTipo === 'todos' && filtroVenc === 'todos'}
-            className="flex items-center gap-2 text-sm px-3 py-1.5 rounded-lg border border-gray-300 hover:bg-gray-50 text-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="flex items-center gap-2 text-sm px-2 py-1.5 rounded-lg border border-gray-300 hover:bg-gray-50 text-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <XCircle className="w-4 h-4" />
             Limpar filtros
@@ -889,12 +889,14 @@ export const Processos: React.FC<ProcessosProps> = ({ pessoaIdInicial }) => {
               {/* Seção: Detalhes */}
               <fieldset className="space-y-4 border-t border-gray-100 pt-4">
                 <legend className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Detalhes</legend>
-              <Input
-                label="🔢 Número do Processo"
-                value={formData.numero}
-                onChange={(e) => setFormData({ ...formData, numero: e.target.value })}
-                placeholder="Ex: 2024/12345"
-              />
+              {editandoId && (
+                <Input
+                  label="🔢 Número do Processo"
+                  value={formData.numero}
+                  onChange={(e) => setFormData({ ...formData, numero: e.target.value })}
+                  placeholder="Ex: 2024/12345"
+                />
+              )}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">📊 Status</label>
                 <select
@@ -927,12 +929,14 @@ export const Processos: React.FC<ProcessosProps> = ({ pessoaIdInicial }) => {
               {/* Seção: Informações complementares */}
               <fieldset className="space-y-4 border-t border-gray-100 pt-4">
                 <legend className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Informações complementares</legend>
-              <Input
-                label="📝 Descrição"
-                value={formData.descricao}
-                onChange={(e) => setFormData({ ...formData, descricao: e.target.value })}
-                placeholder="Descrição opcional"
-              />
+              {editandoId && (
+                <Input
+                  label="📝 Descrição"
+                  value={formData.descricao}
+                  onChange={(e) => setFormData({ ...formData, descricao: e.target.value })}
+                  placeholder="Descrição opcional"
+                />
+              )}
               <Input
                 label="🗒️ Observações"
                 value={formData.observacoes}
