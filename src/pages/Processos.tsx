@@ -31,6 +31,7 @@ import {
   Copy,
   ArrowUp,
   XCircle,
+  CalendarDays,
 } from 'lucide-react'
 import { registrarAcessoSenhaGov } from '../lib/crypto'
 import { DetalheProcesso } from './DetalheProcesso'
@@ -133,8 +134,17 @@ export const Processos: React.FC<ProcessosProps> = ({ pessoaIdInicial }) => {
   const [formErrosNovaP, setFormErrosNovaP] = useState<Partial<Record<string, string>>>({})
   const [salvandoNovaP, setSalvandoNovaP] = useState(false)
   const [salvandoProcesso, setSalvandoProcesso] = useState(false)
+  const inputDataPrazoInlineRef = React.useRef<HTMLInputElement | null>(null)
+  const inputDataPrazoModalRef = React.useRef<HTMLInputElement | null>(null)
   const carregandoInicial = Boolean(carregandoProcessos || carregandoPessoas) && processos.length === 0
   const atualizandoEmSegundoPlano = Boolean(carregandoProcessos || carregandoPessoas) && !carregandoInicial
+
+  const abrirSeletorData = (input: HTMLInputElement | null) => {
+    if (!input) return
+    input.focus()
+    const picker = input as HTMLInputElement & { showPicker?: () => void }
+    if (typeof picker.showPicker === 'function') picker.showPicker()
+  }
 
   useEffect(() => { void carregarProcessos() }, [carregarProcessos])
   useEffect(() => { void carregarPessoas() }, [carregarPessoas])
@@ -389,6 +399,10 @@ export const Processos: React.FC<ProcessosProps> = ({ pessoaIdInicial }) => {
     }
   }, [detalhesId])
 
+  useEffect(() => {
+    if (editandoDataPrazoId) abrirSeletorData(inputDataPrazoInlineRef.current)
+  }, [editandoDataPrazoId])
+
   if (detalhesId) {
     return (
       <DetalheProcesso
@@ -521,9 +535,10 @@ export const Processos: React.FC<ProcessosProps> = ({ pessoaIdInicial }) => {
               const diasRestantes = processo.dataPrazo ? calcularDiasRestantes(processo.dataPrazo) : null
               const vencido = diasRestantes !== null && diasRestantes < 0
               const venceHoje = diasRestantes === 0
-              const processoAberto = ultimoProcessoComDocumentos === processo.id || ultimoProcessoComCredenciais === processo.id
+              const ultimoCredenciais = ultimoProcessoComCredenciais === processo.id
+              const ultimoDocumentos = ultimoProcessoComDocumentos === processo.id
               return (
-                <div key={processo.id} className={`bg-white rounded-2xl shadow-sm ring-1 p-4 ${processoAberto ? 'ring-sky-200 bg-sky-50/40' : vencido ? 'ring-red-200' : 'ring-black/5'}`}>
+                <div key={processo.id} className={`bg-white rounded-2xl shadow-sm ring-1 p-4 ${ultimoCredenciais ? 'ring-emerald-200 bg-emerald-50/40' : ultimoDocumentos ? 'ring-sky-200 bg-sky-50/40' : vencido ? 'ring-red-200' : 'ring-black/5'}`}>
                   <p className="font-semibold text-gray-900">{pessoa?.nome || 'Pessoa não encontrada'}</p>
                   <p className="text-xs text-gray-500 font-mono mt-1">{pessoa?.cpf || 'Sem CPF'}</p>
                   <p className="text-sm text-gray-700 mt-2">{nomesTipoProcesso[processo.tipo]}</p>
@@ -550,14 +565,14 @@ export const Processos: React.FC<ProcessosProps> = ({ pessoaIdInicial }) => {
                     <button
                       onClick={() => void abrirCredenciais(processo)}
                       title="Ver credenciais"
-                      className="p-1.5 text-amber-600 hover:bg-amber-50 rounded-lg transition-colors"
+                      className={`p-1.5 rounded-lg transition-colors ${ultimoCredenciais ? 'text-emerald-700 bg-emerald-100 hover:bg-emerald-200' : 'text-amber-600 hover:bg-amber-50'}`}
                     >
                       <Eye className="w-4 h-4" />
                     </button>
                     <button
                       onClick={() => setDetalhesId(processo.id)}
                       title="Ver documentos"
-                      className={`p-1.5 rounded-lg transition-colors ${processoAberto ? 'text-sky-700 bg-sky-100 hover:bg-sky-200' : 'text-purple-600 hover:bg-purple-50'}`}
+                      className={`p-1.5 rounded-lg transition-colors ${ultimoDocumentos ? 'text-sky-700 bg-sky-100 hover:bg-sky-200' : 'text-purple-600 hover:bg-purple-50'}`}
                     >
                       <ClipboardList className="w-4 h-4" />
                     </button>
@@ -599,9 +614,12 @@ export const Processos: React.FC<ProcessosProps> = ({ pessoaIdInicial }) => {
                     const diasRestantes = processo.dataPrazo ? calcularDiasRestantes(processo.dataPrazo) : null
                     const vencido = diasRestantes !== null && diasRestantes < 0
                     const venceHoje = diasRestantes === 0
-                    const processoAberto = ultimoProcessoComDocumentos === processo.id || ultimoProcessoComCredenciais === processo.id
+                    const ultimoCredenciais = ultimoProcessoComCredenciais === processo.id
+                    const ultimoDocumentos = ultimoProcessoComDocumentos === processo.id
                     let bgClass = 'hover:bg-gray-50'
-                    if (processoAberto) {
+                    if (ultimoCredenciais) {
+                      bgClass = 'bg-emerald-50 hover:bg-emerald-100'
+                    } else if (ultimoDocumentos) {
                       bgClass = 'bg-sky-50 hover:bg-sky-100'
                     } else if (vencido) {
                       bgClass = 'bg-red-50 hover:bg-red-100'
@@ -635,11 +653,20 @@ export const Processos: React.FC<ProcessosProps> = ({ pessoaIdInicial }) => {
                           {editandoDataPrazoId === processo.id ? (
                             <div className="flex items-center gap-2">
                               <input
+                                ref={inputDataPrazoInlineRef}
                                 type="date"
                                 value={novaDataPrazo}
                                 onChange={(e) => setNovaDataPrazo(e.target.value)}
                                 className="border border-blue-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                               />
+                              <button
+                                type="button"
+                                onClick={() => abrirSeletorData(inputDataPrazoInlineRef.current)}
+                                className="px-2 py-1 text-xs font-medium bg-blue-100 text-blue-700 rounded hover:bg-blue-200"
+                                title="Abrir calendário"
+                              >
+                                <CalendarDays className="w-4 h-4" />
+                              </button>
                               <button
                                 onClick={() => salvarDataPrazo(processo.id)}
                                 disabled={!novaDataPrazo}
@@ -675,14 +702,14 @@ export const Processos: React.FC<ProcessosProps> = ({ pessoaIdInicial }) => {
                             <button
                               onClick={() => void abrirCredenciais(processo)}
                               title="Ver credenciais"
-                              className="p-1.5 text-amber-600 hover:bg-amber-50 rounded-lg transition-colors"
+                              className={`p-1.5 rounded-lg transition-colors ${ultimoCredenciais ? 'text-emerald-700 bg-emerald-100 hover:bg-emerald-200' : 'text-amber-600 hover:bg-amber-50'}`}
                             >
                               <Eye className="w-4 h-4" />
                             </button>
                             <button
                               onClick={() => setDetalhesId(processo.id)}
                               title="Ver documentos"
-                              className={`p-1.5 rounded-lg transition-colors ${processoAberto ? 'text-sky-700 bg-sky-100 hover:bg-sky-200' : 'text-purple-600 hover:bg-purple-50'}`}
+                              className={`p-1.5 rounded-lg transition-colors ${ultimoDocumentos ? 'text-sky-700 bg-sky-100 hover:bg-sky-200' : 'text-purple-600 hover:bg-purple-50'}`}
                             >
                               <ClipboardList className="w-4 h-4" />
                             </button>
@@ -926,13 +953,28 @@ export const Processos: React.FC<ProcessosProps> = ({ pessoaIdInicial }) => {
                   onChange={(e) => setFormData({ ...formData, dataAbertura: e.target.value })}
                   error={formErros.dataAbertura}
                 />
-                <Input
-                  label="⏰ Data Prazo"
-                  type="date"
-                  value={formData.dataPrazo}
-                  onChange={(e) => setFormData({ ...formData, dataPrazo: e.target.value })}
-                  error={formErros.dataPrazo}
-                />
+                <div className="space-y-1">
+                  <label htmlFor="data-prazo" className="block text-sm font-medium text-gray-700">⏰ Data Prazo</label>
+                  <div className="relative">
+                    <input
+                      id="data-prazo"
+                      ref={inputDataPrazoModalRef}
+                      type="date"
+                      value={formData.dataPrazo}
+                      onChange={(e) => setFormData({ ...formData, dataPrazo: e.target.value })}
+                      className={`w-full px-3 py-2 pr-10 border rounded-lg text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent ${formErros.dataPrazo ? 'border-red-400 bg-red-50' : 'border-gray-300 bg-white'}`}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => abrirSeletorData(inputDataPrazoModalRef.current)}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 rounded-md text-gray-500 hover:bg-gray-100 hover:text-gray-700"
+                      title="Abrir calendário"
+                    >
+                      <CalendarDays className="w-4 h-4" />
+                    </button>
+                  </div>
+                  {formErros.dataPrazo && <p className="text-xs text-red-600">{formErros.dataPrazo}</p>}
+                </div>
               </div>
               </fieldset>
               {/* Seção: Informações complementares */}
