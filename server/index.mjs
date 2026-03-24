@@ -4,6 +4,13 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import crypto from 'node:crypto'
+import { z } from 'zod'
+import {
+  backupPayloadSchema,
+  calcularChecksumJson,
+  validarChecksumBackup,
+  validarIntegridadeBackup,
+} from './backup-utils.mjs'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -30,6 +37,10 @@ const ALLOWED_ORIGINS = (process.env.AGUIA_ALLOWED_ORIGINS || '')
 
 const app = express()
 
+const RATE_LIMIT_MAX = Number(process.env.AGUIA_RATE_LIMIT_MAX || 300)
+const RATE_LIMIT_WINDOW_MS = Number(process.env.AGUIA_RATE_LIMIT_WINDOW_MS || 60_000)
+const rateBucket = new Map()
+
 function originPermitida(origin) {
   if (!origin) return true
   if (ALLOWED_ORIGINS.length > 0) return ALLOWED_ORIGINS.includes(origin)
@@ -45,6 +56,90 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization', 'X-AGUIA-API-TOKEN'],
 }))
 app.use(express.json({ limit: '4mb' }))
+
+function getClientKey(req) {
+  return req.ip || req.headers['x-forwarded-for'] || req.socket?.remoteAddress || 'unknown'
+}
+
+function rateLimitMiddleware(req, res, next) {
+  if (req.path === '/health') return next()
+  const agora = Date.now()
+  const chave = String(getClientKey(req))
+  const atual = rateBucket.get(chave)
+  if (!atual || agora >= atual.resetAt) {
+    rateBucket.set(chave, { count: 1, resetAt: agora + RATE_LIMIT_WINDOW_MS })
+    res.setHeader('X-RateLimit-Limit', String(RATE_LIMIT_MAX))
+    return next()
+  }
+  if (atual.count >= RATE_LIMIT_MAX) {
+    res.setHeader('Retry-After', String(Math.ceil((atual.resetAt - agora) / 1000)))
+    return res.status(429).json({ message: 'Muitas requisições, tente novamente em instantes' })
+  }
+  atual.count += 1
+  rateBucket.set(chave, atual)
+  res.setHeader('X-RateLimit-Limit', String(RATE_LIMIT_MAX))
+  return next()
+}
+
+app.use('/api', rateLimitMiddleware)
+
+const pessoaCreateSchema = z.object({
+  id: z.string().min(1),
+  nome: z.string().min(1),
+  cpf: z.string().min(1),
+  senhaGov: z.string().optional(),
+  telefone: z.string().optional(),
+  email: z.string().optional(),
+  endereco: z.string().optional(),
+  ativo: z.boolean().optional(),
+  dataCadastro: z.string().optional(),
+  dataAtualizacao: z.string().optional(),
+})
+
+const pessoaUpdateSchema = pessoaCreateSchema.partial().refine((v) => Object.keys(v).length > 0, {
+  message: 'Payload vazio para atualização',
+})
+
+const processoCreateSchema = z.object({
+  id: z.string().min(1),
+  pessoaId: z.string().min(1),
+  tipo: z.string().min(1),
+  numero: z.string().optional(),
+  status: z.string().optional(),
+  dataAbertura: z.string().optional(),
+  dataPrazo: z.string().optional(),
+  descricao: z.string().optional(),
+  observacoes: z.string().optional(),
+})
+
+const processoUpdateSchema = processoCreateSchema.partial().refine((v) => Object.keys(v).length > 0, {
+  message: 'Payload vazio para atualização',
+})
+
+const documentoCreateSchema = z.object({
+  id: z.string().min(1),
+  processoId: z.string().min(1),
+  nome: z.string().min(1),
+  status: z.string().optional(),
+  observacoes: z.string().optional(),
+  dataEntrega: z.string().optional(),
+})
+
+const documentoUpdateSchema = documentoCreateSchema.partial().refine((v) => Object.keys(v).length > 0, {
+  message: 'Payload vazio para atualização',
+})
+
+function validarPayload(schema, data, res, mensagem = 'Payload inválido') {
+  const parsed = schema.safeParse(data)
+  if (!parsed.success) {
+    res.status(400).json({
+      message: mensagem,
+      details: parsed.error.issues.map((issue) => `${issue.path.join('.') || 'root'}: ${issue.message}`),
+    })
+    return null
+  }
+  return parsed.data
+}
 
 function filtrarCampos(obj, permitidos) {
   if (!obj || typeof obj !== 'object' || Array.isArray(obj)) return {}
@@ -117,6 +212,13 @@ function writeDb(db) {
   fs.writeFileSync(DATA_FILE, JSON.stringify(db, null, 2), 'utf-8')
 }
 
+function writeDbAtomico(db) {
+  ensureDataFile()
+  const tmp = `${DATA_FILE}.tmp`
+  fs.writeFileSync(tmp, JSON.stringify(db, null, 2), 'utf-8')
+  fs.renameSync(tmp, DATA_FILE)
+}
+
 function byId(id) {
   return (item) => item.id === id
 }
@@ -141,6 +243,51 @@ app.get('/api/security/material', (_, res) => {
   res.json({ material: secret })
 })
 
+app.get('/api/backup/export', (_, res) => {
+  const db = readDb()
+  const semChecksum = {
+    versao: '2.0',
+    timestamp: new Date().toISOString(),
+    pessoas: db.pessoas,
+    processos: db.processos,
+    documentosProcesso: db.documentosProcesso,
+    configuracoes: db.configuracoes,
+  }
+  const checksum = calcularChecksumJson(semChecksum)
+  res.json({ ...semChecksum, checksum })
+})
+
+app.post('/api/backup/import', (req, res) => {
+  const payload = validarPayload(backupPayloadSchema, req.body, res, 'Backup inválido ou incompatível')
+  if (!payload) return
+
+  const checksum = validarChecksumBackup(payload)
+  if (!checksum.ok) return res.status(400).json({ message: checksum.message })
+
+  const integridade = validarIntegridadeBackup(payload)
+  if (!integridade.ok) return res.status(400).json({ message: integridade.message })
+
+  const novoDb = {
+    pessoas: payload.pessoas,
+    processos: payload.processos,
+    documentosProcesso: payload.documentosProcesso ?? [],
+    configuracoes: payload.configuracoes ?? [],
+  }
+
+  try {
+    writeDbAtomico(novoDb)
+    return res.json({
+      ok: true,
+      pessoas: novoDb.pessoas.length,
+      processos: novoDb.processos.length,
+      documentos: novoDb.documentosProcesso.length,
+      configuracoes: novoDb.configuracoes.length,
+    })
+  } catch {
+    return res.status(500).json({ message: 'Falha ao importar backup de forma atômica' })
+  }
+})
+
 app.get('/api/pessoas', (_, res) => {
   const db = readDb()
   res.json(db.pessoas)
@@ -151,18 +298,18 @@ app.post('/api/pessoas', (req, res) => {
   const novaPessoa = filtrarCampos(req.body, [
     'id', 'nome', 'cpf', 'senhaGov', 'telefone', 'email', 'endereco', 'ativo', 'dataCadastro', 'dataAtualizacao',
   ])
-  if (!novaPessoa?.id || !novaPessoa?.nome || !novaPessoa?.cpf) {
-    return res.status(400).json({ message: 'Dados inválidos para pessoa' })
-  }
+  const payload = validarPayload(pessoaCreateSchema, novaPessoa, res, 'Dados inválidos para pessoa')
+  if (!payload) return
+  const pessoa = payload
   if (!stringNaoVazia(novaPessoa.id) || !stringNaoVazia(novaPessoa.nome) || !stringNaoVazia(novaPessoa.cpf)) {
     return res.status(400).json({ message: 'Dados inválidos para pessoa' })
   }
-  const cpfNormalizado = normalizarCPF(novaPessoa.cpf)
+  const cpfNormalizado = normalizarCPF(pessoa.cpf)
   const duplicada = db.pessoas.find((p) => normalizarCPF(p.cpf) === cpfNormalizado)
   if (duplicada) return res.status(409).json({ message: 'Já existe uma pessoa com este CPF' })
-  db.pessoas.push(novaPessoa)
+  db.pessoas.push(pessoa)
   writeDb(db)
-  return res.status(201).json(novaPessoa)
+  return res.status(201).json(pessoa)
 })
 
 app.put('/api/pessoas/:id', (req, res) => {
@@ -173,9 +320,12 @@ app.put('/api/pessoas/:id', (req, res) => {
   const atualizacao = filtrarCampos(req.body, [
     'nome', 'cpf', 'senhaGov', 'telefone', 'email', 'endereco', 'ativo', 'dataAtualizacao',
   ])
-  const prox = { ...atual, ...atualizacao }
-  if (atualizacao.cpf) {
-    const cpfNormalizado = normalizarCPF(atualizacao.cpf)
+  const parsedAtualizacao = validarPayload(pessoaUpdateSchema, atualizacao, res, 'Dados inválidos para pessoa')
+  if (!parsedAtualizacao) return
+  const atualizacaoValida = parsedAtualizacao
+  const prox = { ...atual, ...atualizacaoValida }
+  if (atualizacaoValida.cpf) {
+    const cpfNormalizado = normalizarCPF(atualizacaoValida.cpf)
     const duplicada = db.pessoas.find((p) => p.id !== req.params.id && normalizarCPF(p.cpf) === cpfNormalizado)
     if (duplicada) return res.status(409).json({ message: 'Já existe outra pessoa com este CPF' })
   }
@@ -209,12 +359,18 @@ app.post('/api/processos', (req, res) => {
   const novoProcesso = filtrarCampos(req.body, [
     'id', 'pessoaId', 'tipo', 'numero', 'status', 'dataAbertura', 'dataPrazo', 'descricao', 'observacoes',
   ])
-  if (!novoProcesso?.id || !novoProcesso?.pessoaId || !novoProcesso?.tipo) {
-    return res.status(400).json({ message: 'Dados inválidos para processo' })
+  const parsedProcesso = validarPayload(processoCreateSchema, novoProcesso, res, 'Dados inválidos para processo')
+  if (!parsedProcesso) return
+  const processo = parsedProcesso
+  if (db.processos.some((p) => p.id === processo.id)) {
+    return res.status(409).json({ message: 'Já existe um processo com este ID' })
   }
-  db.processos.push(novoProcesso)
+  if (!db.pessoas.some((p) => p.id === processo.pessoaId)) {
+    return res.status(400).json({ message: 'Pessoa vinculada ao processo não encontrada' })
+  }
+  db.processos.push(processo)
   writeDb(db)
-  return res.status(201).json(novoProcesso)
+  return res.status(201).json(processo)
 })
 
 app.put('/api/processos/:id', (req, res) => {
@@ -224,7 +380,13 @@ app.put('/api/processos/:id', (req, res) => {
   const atualizacao = filtrarCampos(req.body, [
     'pessoaId', 'tipo', 'numero', 'status', 'dataAbertura', 'dataPrazo', 'descricao', 'observacoes',
   ])
-  db.processos[idx] = { ...db.processos[idx], ...atualizacao }
+  const parsedAtualizacao = validarPayload(processoUpdateSchema, atualizacao, res, 'Dados inválidos para processo')
+  if (!parsedAtualizacao) return
+  const atualizacaoValida = parsedAtualizacao
+  if (atualizacaoValida.pessoaId && !db.pessoas.some((p) => p.id === atualizacaoValida.pessoaId)) {
+    return res.status(400).json({ message: 'Pessoa vinculada ao processo não encontrada' })
+  }
+  db.processos[idx] = { ...db.processos[idx], ...atualizacaoValida }
   writeDb(db)
   return res.json(db.processos[idx])
 })
@@ -249,12 +411,18 @@ app.post('/api/documentos-processo', (req, res) => {
   const doc = filtrarCampos(req.body, [
     'id', 'processoId', 'nome', 'status', 'observacoes', 'dataEntrega',
   ])
-  if (!doc?.id || !doc?.processoId || !doc?.nome) {
-    return res.status(400).json({ message: 'Dados inválidos para documento' })
+  const parsedDocumento = validarPayload(documentoCreateSchema, doc, res, 'Dados inválidos para documento')
+  if (!parsedDocumento) return
+  const documento = parsedDocumento
+  if (db.documentosProcesso.some((d) => d.id === documento.id)) {
+    return res.status(409).json({ message: 'Já existe um documento com este ID' })
   }
-  db.documentosProcesso.push(doc)
+  if (!db.processos.some((p) => p.id === documento.processoId)) {
+    return res.status(400).json({ message: 'Processo vinculado ao documento não encontrado' })
+  }
+  db.documentosProcesso.push(documento)
   writeDb(db)
-  return res.status(201).json(doc)
+  return res.status(201).json(documento)
 })
 
 app.put('/api/documentos-processo/:id', (req, res) => {
@@ -262,7 +430,9 @@ app.put('/api/documentos-processo/:id', (req, res) => {
   const idx = db.documentosProcesso.findIndex(byId(req.params.id))
   if (idx < 0) return res.status(404).json({ message: 'Documento não encontrado' })
   const atualizacao = filtrarCampos(req.body, ['nome', 'status', 'observacoes', 'dataEntrega'])
-  db.documentosProcesso[idx] = { ...db.documentosProcesso[idx], ...atualizacao }
+  const parsedAtualizacao = validarPayload(documentoUpdateSchema, atualizacao, res, 'Dados inválidos para documento')
+  if (!parsedAtualizacao) return
+  db.documentosProcesso[idx] = { ...db.documentosProcesso[idx], ...parsedAtualizacao }
   writeDb(db)
   return res.json(db.documentosProcesso[idx])
 })
@@ -310,8 +480,17 @@ app.delete('/api/configuracoes/:chave', (req, res) => {
 })
 
 if (fs.existsSync(DIST_DIR)) {
-  app.use(express.static(DIST_DIR))
-  app.get('*', (_, res) => {
+  app.use(express.static(DIST_DIR, {
+    index: false,
+    etag: true,
+    maxAge: '7d',
+  }))
+  app.get('*', (req, res) => {
+    if (req.path.startsWith('/api/')) return res.status(404).json({ message: 'Rota API não encontrada' })
+    // Evita cache agressivo de index.html, reduzindo risco de tela branca por bundle antigo.
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate')
+    res.setHeader('Pragma', 'no-cache')
+    res.setHeader('Expires', '0')
     res.sendFile(path.join(DIST_DIR, 'index.html'))
   })
 }

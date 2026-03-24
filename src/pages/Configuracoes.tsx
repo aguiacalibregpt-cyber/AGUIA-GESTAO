@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { db } from '../data/db'
 import type { BackupHistorico, Processo, Pessoa, DocumentoProcesso, Configuracao } from '../types/models'
+import { api } from '../lib/api'
 import { useProcessosStore } from '../stores/processosStore'
 import { usePessoasStore } from '../stores/pessoasStore'
 import { useConfiguracoesStore } from '../stores/configuracoesStore'
@@ -44,6 +45,15 @@ const calcularChecksum = async (dados: string): Promise<string> => {
 }
 
 const MAX_HISTORICO = 10
+
+const carregarDocumentosApi = async (processosLista: Array<{ id: string }>): Promise<DocumentoProcesso[]> => {
+  const grupos = await Promise.all(
+    processosLista.map((processo) =>
+      api.get<DocumentoProcesso[]>(`/documentos-processo?processoId=${encodeURIComponent(processo.id)}`),
+    ),
+  )
+  return grupos.flat()
+}
 
 export const Configuracoes: React.FC = () => {
   const { processos, carregarProcessos } = useProcessosStore()
@@ -169,13 +179,14 @@ export const Configuracoes: React.FC = () => {
     }
     setCarregando(true)
     try {
-      const todosDocumentos = await db.documentosProcesso.toArray()
-      const todasConfiguracoes = await db.configuracoes.toArray()
-      const todasPessoasBd = await db.pessoas.toArray()
+      const pessoasApi = await api.get<Pessoa[]>('/pessoas')
+      const processosApi = await api.get<Processo[]>('/processos')
+      const todosDocumentos = await carregarDocumentosApi(processosApi)
+      const todasConfiguracoes = await api.get<Configuracao[]>('/configuracoes')
 
       // Re-criptografa senhaGov com a senha do backup (portátil)
       const pessoasParaBackup = await Promise.all(
-        todasPessoasBd.map(async (p) => {
+        pessoasApi.map(async (p) => {
           if (!p.senhaGov) return { ...p, senhaGovBackup: undefined }
           try {
             const senhaPlano = senhaGovEstaCriptografada(p.senhaGov)
@@ -193,7 +204,7 @@ export const Configuracoes: React.FC = () => {
         versao: '2.0',
         timestamp: new Date().toISOString(),
         pessoas: pessoasParaBackup,
-        processos,
+        processos: processosApi,
         documentosProcesso: todosDocumentos,
         configuracoes: todasConfiguracoes,
       }
@@ -220,7 +231,7 @@ export const Configuracoes: React.FC = () => {
         tamanhoBytes: blob.size,
         checksum,
         pessoas: pessoasParaBackup.length,
-        processos: processos.length,
+        processos: processosApi.length,
         documentos: todosDocumentos.length,
         configuracoes: todasConfiguracoes.length,
         payload: jsonBackup,
@@ -266,11 +277,9 @@ export const Configuracoes: React.FC = () => {
         throw new Error('Arquivo de backup inválido ou incompatível')
       }
 
-      // Limpa banco
-      await db.pessoas.clear()
-      await db.processos.clear()
-      await db.documentosProcesso.clear()
-      await db.configuracoes.clear()
+      if ((dados.pessoas?.length ?? 0) === 0 && (dados.processos?.length ?? 0) > 0) {
+        throw new Error('Backup inconsistente: há processos sem pessoas. Não é seguro restaurar este arquivo.')
+      }
 
       // Re-criptografa senhas com chave local
       const pessoasRestauradas = await Promise.all(
@@ -286,6 +295,21 @@ export const Configuracoes: React.FC = () => {
           }
         }),
       )
+
+      await api.post('/backup/import', {
+        versao: dados.versao,
+        timestamp: dados.timestamp,
+        pessoas: pessoasRestauradas,
+        processos: dados.processos,
+        documentosProcesso: dados.documentosProcesso ?? [],
+        configuracoes: dados.configuracoes ?? [],
+      })
+
+      // Mantém também o banco local em sincronia para rotinas de diagnóstico/backup.
+      await db.pessoas.clear()
+      await db.processos.clear()
+      await db.documentosProcesso.clear()
+      await db.configuracoes.clear()
 
       await db.pessoas.bulkAdd(pessoasRestauradas)
       await db.processos.bulkAdd(dados.processos)

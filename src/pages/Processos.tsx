@@ -269,7 +269,7 @@ export const Processos: React.FC<ProcessosProps> = ({ pessoaIdInicial }) => {
         salvandoSenha: false,
         observacoes: processo.observacoes || '',
         status: processo.status,
-        ultimaConsulta: (processo as any).dataUltimaConsulta ? new Date((processo as any).dataUltimaConsulta) : null
+        ultimaConsulta: processo.dataUltimaConsulta ? new Date(processo.dataUltimaConsulta) : null
       })
   }
 
@@ -485,13 +485,12 @@ export const Processos: React.FC<ProcessosProps> = ({ pessoaIdInicial }) => {
                   const diasRestantes = processo.dataPrazo ? calcularDiasRestantes(processo.dataPrazo) : null
                   const vencido = diasRestantes !== null && diasRestantes < 0
                   const venceHoje = diasRestantes === 0
+                  const processoAberto = ultimoProcessoComDocumentos === processo.id || ultimoProcessoComCredenciais === processo.id
                   let bgClass = 'hover:bg-gray-50'
-                  if (ultimoProcessoComCredenciais === processo.id && ultimoProcessoComDocumentos === processo.id) {
-                    bgClass = 'bg-blue-50 hover:bg-blue-100'
-                  } else if (ultimoProcessoComDocumentos === processo.id) {
-                    bgClass = 'bg-blue-50 hover:bg-blue-100'
-                  } else if (ultimoProcessoComCredenciais === processo.id) {
+                  if (processoAberto) {
                     bgClass = 'bg-green-50 hover:bg-green-100'
+                  } else if (vencido) {
+                    bgClass = 'bg-red-50 hover:bg-red-100'
                   }
                   return (
                     <tr key={processo.id} className={`border-b border-gray-100 transition-colors ${bgClass}`}>

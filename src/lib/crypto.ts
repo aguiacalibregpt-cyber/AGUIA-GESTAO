@@ -2,7 +2,6 @@ const ENCRYPTION_PREFIX_V2 = 'enc:v2:'
 const ENCRYPTION_PREFIX_LEGACY = 'enc:v1:'
 const ENCRYPTION_PREFIX_V2_JS = 'enc:v2js:'
 const LEGACY_APP_SALT = 'aguia-despachante::senha-gov'
-const TAURI_SECURITY_SALT_COMMAND = 'get_or_create_security_salt'
 const DERIVATION_SALT_V2 = 'aguia::senha-gov::v2'
 const SECURITY_SECRET_ENV = (import.meta.env.VITE_SECURITY_SECRET as string | undefined)?.trim()
 const API_BASE = (import.meta.env.VITE_API_URL as string | undefined)?.replace(/\/$/, '') || `${window.location.origin}/api`
@@ -203,11 +202,6 @@ const bytesParaBuffer = (bytes: Uint8Array): ArrayBuffer => {
 const normalizarIdentificador = (valor: string): string =>
   valor.replace(/\D/g, '') || valor.trim().toLowerCase()
 
-const ambienteDesktop = (): boolean => {
-  const scope = globalThis as { __TAURI_INTERNALS__?: unknown }
-  return Boolean(scope.__TAURI_INTERNALS__)
-}
-
 const obterTokenApi = (): string | undefined => {
   if (API_TOKEN_ENV) return API_TOKEN_ENV
   try {
@@ -235,18 +229,6 @@ const obterMaterialViaApi = async (): Promise<string | undefined> => {
 
 const obterMaterialInstalacao = async (): Promise<string> => {
   if (materialInstalacaoCache) return materialInstalacaoCache
-  try {
-    if (ambienteDesktop()) {
-      const tauriCore = await import('@tauri-apps/api/core')
-      const material = await tauriCore.invoke<string>(TAURI_SECURITY_SALT_COMMAND)
-      if (material?.trim()) {
-        materialInstalacaoCache = material
-        return material
-      }
-    }
-  } catch {
-    // fallback para web/env/api
-  }
 
   if (SECURITY_SECRET_ENV) {
     materialInstalacaoCache = SECURITY_SECRET_ENV

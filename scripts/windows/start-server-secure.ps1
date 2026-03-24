@@ -14,6 +14,19 @@ if (-not (Test-Path $logDir)) {
 }
 $logFile = Join-Path $logDir "aguia-startup-secure.log"
 
+if (Test-Path $logFile) {
+  $tam = (Get-Item $logFile).Length
+  if ($tam -gt 1048576) {
+    $stamp = Get-Date -Format "yyyyMMdd-HHmmss"
+    $rot = Join-Path $logDir ("aguia-startup-secure-" + $stamp + ".log")
+    Move-Item -Path $logFile -Destination $rot -Force
+    $antigos = Get-ChildItem -Path $logDir -Filter "aguia-startup-secure-*.log" | Sort-Object LastWriteTime -Descending
+    if ($antigos.Count -gt 5) {
+      $antigos | Select-Object -Skip 5 | Remove-Item -Force -ErrorAction SilentlyContinue
+    }
+  }
+}
+
 function Write-Log {
   param([string]$Message)
   $line = "[{0}] {1}" -f (Get-Date -Format "yyyy-MM-dd HH:mm:ss"), $Message
