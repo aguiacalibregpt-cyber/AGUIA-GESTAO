@@ -6,6 +6,7 @@ import {
   criptografarSenhaGov,
   descriptografarSenhaGov,
   senhaGovEstaCriptografada,
+  senhaGovUsaEsquemaLegado,
   registrarAcessoSenhaGov,
 } from '../lib/crypto'
 
@@ -53,6 +54,15 @@ export const usePessoasStore = create<PessoasStore>((set, get) => ({
           if (senhaGovEstaCriptografada(pessoa.senhaGov)) {
             try {
               const senhaTextoPlano = await descriptografarSenhaGov(pessoa.senhaGov, pessoa.cpf)
+              if (senhaGovUsaEsquemaLegado(pessoa.senhaGov)) {
+                const senhaMigrada = await criptografarSenhaGov(senhaTextoPlano, pessoa.cpf)
+                if (senhaMigrada) {
+                  await api.put(`/pessoas/${pessoa.id}`, {
+                    senhaGov: senhaMigrada,
+                    dataAtualizacao: new Date().toISOString(),
+                  })
+                }
+              }
               return { ...pessoa, senhaGov: senhaTextoPlano }
             } catch {
               registrarAcessoSenhaGov('falha_descriptografia', { pessoaId: pessoa.id })

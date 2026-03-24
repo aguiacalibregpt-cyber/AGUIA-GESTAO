@@ -42,7 +42,27 @@ interface ProcessosProps {
 type FiltroStatus = 'todos' | StatusProcesso
 type FiltroVenc = 'todos' | 'vencidos' | 'hoje' | 'semana'
 
-const TIPOS_OPTIONS = Object.entries(nomesTipoProcesso).map(([value, label]) => ({ value, label }))
+const ORDEM_TIPOS_PROCESSO: TipoProcesso[] = [
+  TipoProcesso.CR_ATIRADOR_CACADOR,
+  TipoProcesso.AQUISICAO_ARMA_CR_ATIRADOR,
+  TipoProcesso.AQUISICAO_ARMA_CR_CACADOR,
+  TipoProcesso.CRAF_CR,
+  TipoProcesso.RENOVACAO_CRAF_CR,
+  TipoProcesso.GUIA_TRAFEGO_TIRO,
+  TipoProcesso.GUIA_TRAFEGO_CACA,
+  TipoProcesso.GUIA_TRAFEGO_MUDANCA_ACERVO,
+  TipoProcesso.GUIA_TRAFEGO_RECUPERACAO,
+  TipoProcesso.AQUISICAO_ARMA_SINARM,
+  TipoProcesso.REGISTRO_SINARM,
+  TipoProcesso.RENOVACAO_REGISTRO_SINARM,
+  TipoProcesso.GUIA_TRAFEGO_SINARM,
+  TipoProcesso.TRANSFERENCIA_ARMA_CR,
+]
+
+const TIPOS_OPTIONS = ORDEM_TIPOS_PROCESSO.map((value) => ({
+  value,
+  label: nomesTipoProcesso[value],
+}))
 const STATUS_OPTIONS = Object.entries(nomesStatusProcesso).map(([value, label]) => ({ value, label }))
 const FORM_INICIAL = {
   pessoaId: '',
@@ -405,15 +425,6 @@ export const Processos: React.FC<ProcessosProps> = ({ pessoaIdInicial }) => {
             <XCircle className="w-4 h-4" />
             Limpar filtros
           </button>
-          {processadosFiltrados.length > 0 && (
-            <button
-              onClick={irParaTopo}
-              className="flex items-center gap-2 text-sm px-3 py-1.5 rounded-lg border border-gray-300 hover:bg-gray-50 text-gray-700 ml-auto"
-            >
-              <ArrowUp className="w-4 h-4" />
-              Ir para o topo
-            </button>
-          )}
         </div>
       </div>
 

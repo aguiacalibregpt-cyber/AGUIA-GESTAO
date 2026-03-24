@@ -64,6 +64,24 @@ No PowerShell (Administrador):
 New-NetFirewallRule -DisplayName "AGUIA Servidor 3000" -Direction Inbound -Protocol TCP -LocalPort 3000 -Action Allow -Profile Private
 ```
 
+## 4.1 Endurecimento de seguranca (recomendado)
+
+Defina um token de API e origens CORS antes de iniciar o servidor.
+
+No PowerShell (sessao atual):
+
+```powershell
+$env:AGUIA_API_TOKEN = "troque-por-um-token-forte"
+$env:AGUIA_ALLOWED_ORIGINS = "http://192.168.1.25:3000,http://127.0.0.1:3000"
+```
+
+Depois inicie normalmente com `pnpm server`.
+
+Opcao pratica: use `INICIAR-AGUIA-SERVIDOR-SEGURO.bat`.
+Ele solicita o token (se necessario) e aplica `AGUIA_ALLOWED_ORIGINS` automaticamente.
+
+Nos clientes web, abra Configuracoes -> Seguranca de Acesso e preencha o campo "Token da API (opcional)" com o mesmo valor do `AGUIA_API_TOKEN`.
+
 ## 5. Testar acesso dos outros 2 computadores
 
 Nos clientes, abra navegador em:
@@ -120,7 +138,8 @@ powershell -ExecutionPolicy Bypass -File .\scripts\windows\uninstall-backup-task
 
 No host, use:
 - `INICIAR-AGUIA-SERVIDOR.bat` (janela visivel)
-- `INICIAR-AGUIA-SERVIDOR-OCULTO.vbs` (sem janela)
+- `INICIAR-AGUIA-SERVIDOR-OCULTO.vbs` (sem janela, usa o modo seguro por padrao)
+- `INICIAR-AGUIA-SERVIDOR-SEGURO.bat` (solicita token/API e aplica CORS)
 
 Para parar rapidamente:
 - `PARAR-AGUIA-SERVIDOR.bat`
@@ -155,7 +174,7 @@ powershell -ExecutionPolicy Bypass -File .\PARAR-AGUIA-SERVIDOR.bat
 ```
 
 2. Inicie com 1 clique:
-- `INICIAR-AGUIA-SERVIDOR.bat`
+- `INICIAR-AGUIA-SERVIDOR-SEGURO.bat`
 
 3. Resultado esperado:
 - aparece `AGUIA servidor local em http://0.0.0.0:3000`
@@ -214,7 +233,7 @@ powershell -ExecutionPolicy Bypass -File .\scripts\windows\backup-db.ps1
 - `PARAR-AGUIA-SERVIDOR.bat`
 
 2. Inicie novamente:
-- `INICIAR-AGUIA-SERVIDOR.bat`
+- `INICIAR-AGUIA-SERVIDOR-SEGURO.bat`
 
 3. Confirme que os dados de teste continuam:
 - pessoa `TESTE HOST 001`

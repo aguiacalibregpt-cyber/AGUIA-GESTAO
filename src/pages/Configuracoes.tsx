@@ -6,6 +6,7 @@ import { usePessoasStore } from '../stores/pessoasStore'
 import { useConfiguracoesStore } from '../stores/configuracoesStore'
 import { Button, Alert, Input, ConfirmDialog } from '../components'
 import { gerarId, obterMensagemErro } from '../utils/robustness'
+import { montarTabelaRelatorioProcessos } from '../utils/relatorio'
 import {
   criptografarSenhaGovParaBackup,
   criptografarSenhaGov,
@@ -61,6 +62,8 @@ export const Configuracoes: React.FC = () => {
   const [confirmarPin, setConfirmarPin] = useState('')
   const [tempoInatividade, setTempoInatividade] = useState('5')
   const [pinConfigurado, setPinConfigurado] = useState(false)
+  const [tokenApi, setTokenApi] = useState('')
+  const [incluirSenhaNoRelatorio, setIncluirSenhaNoRelatorio] = useState(false)
   const inputArquivoRef = useRef<HTMLInputElement>(null)
 
   const criarHistorico = (params: {
@@ -106,6 +109,11 @@ export const Configuracoes: React.FC = () => {
     setPinConfigurado(typeof pinHash === 'string' && pinHash.length > 0)
     const idle = await obterConfiguracao('seguranca_idle_minutos')
     if (typeof idle === 'number' && idle > 0) setTempoInatividade(String(Math.floor(idle)))
+    try {
+      setTokenApi(localStorage.getItem('aguia.api.token') || '')
+    } catch {
+      setTokenApi('')
+    }
   }
 
   const salvarNomeEmpresa = async () => {
@@ -137,6 +145,14 @@ export const Configuracoes: React.FC = () => {
         setPinConfigurado(true)
         setNovoPin('')
         setConfirmarPin('')
+      }
+
+      try {
+        const token = tokenApi.trim()
+        if (token) localStorage.setItem('aguia.api.token', token)
+        else localStorage.removeItem('aguia.api.token')
+      } catch {
+        // ignora falha de persistência local
       }
 
       setMensagem({ tipo: 'success', texto: 'Configurações de segurança salvas!' })
@@ -378,26 +394,11 @@ export const Configuracoes: React.FC = () => {
       doc.text(`Relatório de Processos — ${new Date().toLocaleDateString('pt-BR')}`, 14, 26)
       doc.text(`Total: ${processos.length} processos | ${pessoas.length} pessoas`, 14, 33)
 
-      const linhas = processos.map((pr) => {
-        const pessoa = pessoas.find((pe) => pe.id === pr.pessoaId)
-        return [
-          pessoa?.nome || '-',
-          pessoa?.cpf || '-',
-          pessoa?.senhaGov || '-',
-          pr.tipo.replace(/_/g, ' '),
-          pr.status.replace(/_/g, ' '),
-          pr.dataAbertura
-            ? new Date(pr.dataAbertura).toLocaleDateString('pt-BR')
-            : '-',
-          pr.dataPrazo
-            ? new Date(pr.dataPrazo).toLocaleDateString('pt-BR')
-            : '-',
-        ]
-      })
+      const { colunas, linhas } = montarTabelaRelatorioProcessos(processos, pessoas, incluirSenhaNoRelatorio)
 
       autoTable(doc, {
         startY: 40,
-        head: [['Nome', 'CPF', 'Senha Gov', 'Tipo', 'Status', 'Data de Início', 'Data de Prazo']],
+        head: [colunas],
         body: linhas,
         headStyles: { fillColor: [127, 29, 29] },
         alternateRowStyles: { fillColor: [245, 245, 245] },
@@ -496,6 +497,14 @@ export const Configuracoes: React.FC = () => {
             onChange={(e) => setTempoInatividade(e.target.value)}
             placeholder="Ex: 5"
           />
+          <Input
+            label="Token da API (opcional)"
+            type="password"
+            value={tokenApi}
+            onChange={(e) => setTokenApi(e.target.value)}
+            placeholder="Necessário se servidor usar AGUIA_API_TOKEN"
+            helperText="Salvo localmente neste navegador"
+          />
         </div>
         <div className="mt-4">
           <Button onClick={() => void salvarSeguranca()}>
@@ -587,6 +596,15 @@ export const Configuracoes: React.FC = () => {
           <FileText className="w-5 h-5 text-gray-500" /> Relatório em PDF
         </h2>
         <p className="text-sm text-gray-500 mb-4">Gera um relatório PDF com todos os processos cadastrados.</p>
+        <label className="flex items-center gap-2 text-sm text-gray-700 mb-4">
+          <input
+            type="checkbox"
+            checked={incluirSenhaNoRelatorio}
+            onChange={(e) => setIncluirSenhaNoRelatorio(e.target.checked)}
+            className="rounded border-gray-300"
+          />
+          Incluir senha Gov no relatório
+        </label>
         <Button onClick={() => void gerarRelatorioPDF()} disabled={carregando || processos.length === 0}>
           <FileText className="w-4 h-4" />
           Gerar PDF

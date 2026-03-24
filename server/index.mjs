@@ -3,6 +3,7 @@ import cors from 'cors'
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import crypto from 'node:crypto'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -12,6 +13,7 @@ const ROOT = runningAsExecutable ? path.dirname(process.execPath) : path.resolve
 const DIST_DIR = path.join(ROOT, 'dist')
 const DATA_DIR = path.join(ROOT, 'server', 'data')
 const DATA_FILE = path.join(DATA_DIR, 'db.json')
+const SECURITY_SECRET_FILE = path.join(DATA_DIR, '.security-secret')
 
 const DEFAULT_DB = {
   pessoas: [],
@@ -20,15 +22,81 @@ const DEFAULT_DB = {
   configuracoes: [],
 }
 
+const API_TOKEN = process.env.AGUIA_API_TOKEN?.trim() || ''
+const ALLOWED_ORIGINS = (process.env.AGUIA_ALLOWED_ORIGINS || '')
+  .split(',')
+  .map((item) => item.trim())
+  .filter(Boolean)
+
 const app = express()
-app.use(cors())
+
+function originPermitida(origin) {
+  if (!origin) return true
+  if (ALLOWED_ORIGINS.length > 0) return ALLOWED_ORIGINS.includes(origin)
+  return /^https?:\/\/(localhost|127\.0\.0\.1|192\.168\.|10\.|172\.(1[6-9]|2\d|3[0-1])\.)/i.test(origin)
+}
+
+app.use(cors({
+  origin: (origin, callback) => {
+    if (originPermitida(origin)) return callback(null, true)
+    return callback(new Error('Origem não permitida por CORS'))
+  },
+  methods: ['GET', 'POST', 'PUT', 'DELETE'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-AGUIA-API-TOKEN'],
+}))
 app.use(express.json({ limit: '4mb' }))
+
+function filtrarCampos(obj, permitidos) {
+  if (!obj || typeof obj !== 'object' || Array.isArray(obj)) return {}
+  const limpo = {}
+  for (const chave of permitidos) {
+    if (Object.prototype.hasOwnProperty.call(obj, chave)) limpo[chave] = obj[chave]
+  }
+  return limpo
+}
+
+function stringNaoVazia(valor) {
+  return typeof valor === 'string' && valor.trim().length > 0
+}
+
+function extrairToken(req) {
+  const headerAuth = req.headers.authorization
+  if (typeof headerAuth === 'string' && headerAuth.startsWith('Bearer ')) {
+    return headerAuth.slice(7).trim()
+  }
+  const headerCustom = req.headers['x-aguia-api-token']
+  if (typeof headerCustom === 'string') return headerCustom.trim()
+  if (Array.isArray(headerCustom) && headerCustom[0]) return headerCustom[0].trim()
+  return ''
+}
+
+function authMiddleware(req, res, next) {
+  if (!req.path.startsWith('/api/')) return next()
+  if (req.path === '/api/health') return next()
+  if (!API_TOKEN) return next()
+  const recebido = extrairToken(req)
+  if (!recebido) return res.status(401).json({ message: 'Token de acesso ausente' })
+  if (recebido !== API_TOKEN) return res.status(401).json({ message: 'Token de acesso inválido' })
+  return next()
+}
+
+app.use(authMiddleware)
 
 function ensureDataFile() {
   if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true })
   if (!fs.existsSync(DATA_FILE)) {
     fs.writeFileSync(DATA_FILE, JSON.stringify(DEFAULT_DB, null, 2), 'utf-8')
   }
+}
+
+function ensureSecuritySecret() {
+  ensureDataFile()
+  if (!fs.existsSync(SECURITY_SECRET_FILE)) {
+    const novo = crypto.randomBytes(32).toString('hex')
+    fs.writeFileSync(SECURITY_SECRET_FILE, novo, { encoding: 'utf-8', mode: 0o600 })
+    return novo
+  }
+  return fs.readFileSync(SECURITY_SECRET_FILE, 'utf-8').trim()
 }
 
 function readDb() {
@@ -58,7 +126,19 @@ function normalizarCPF(cpf) {
 }
 
 app.get('/api/health', (_, res) => {
-  res.json({ ok: true })
+  res.json({
+    ok: true,
+    authRequired: Boolean(API_TOKEN),
+    corsMode: ALLOWED_ORIGINS.length > 0 ? 'explicit-origins' : 'lan-only-default',
+    securityMaterialEndpoint: API_TOKEN ? 'enabled' : 'disabled',
+  })
+})
+
+app.get('/api/security/material', (_, res) => {
+  if (!API_TOKEN) return res.status(404).json({ message: 'Recurso indisponível' })
+  // Retorna material de derivação por instalação.
+  const secret = ensureSecuritySecret()
+  res.json({ material: secret })
 })
 
 app.get('/api/pessoas', (_, res) => {
@@ -68,8 +148,13 @@ app.get('/api/pessoas', (_, res) => {
 
 app.post('/api/pessoas', (req, res) => {
   const db = readDb()
-  const novaPessoa = req.body
+  const novaPessoa = filtrarCampos(req.body, [
+    'id', 'nome', 'cpf', 'senhaGov', 'telefone', 'email', 'endereco', 'ativo', 'dataCadastro', 'dataAtualizacao',
+  ])
   if (!novaPessoa?.id || !novaPessoa?.nome || !novaPessoa?.cpf) {
+    return res.status(400).json({ message: 'Dados inválidos para pessoa' })
+  }
+  if (!stringNaoVazia(novaPessoa.id) || !stringNaoVazia(novaPessoa.nome) || !stringNaoVazia(novaPessoa.cpf)) {
     return res.status(400).json({ message: 'Dados inválidos para pessoa' })
   }
   const cpfNormalizado = normalizarCPF(novaPessoa.cpf)
@@ -85,9 +170,12 @@ app.put('/api/pessoas/:id', (req, res) => {
   const idx = db.pessoas.findIndex(byId(req.params.id))
   if (idx < 0) return res.status(404).json({ message: 'Pessoa não encontrada' })
   const atual = db.pessoas[idx]
-  const prox = { ...atual, ...req.body }
-  if (req.body.cpf) {
-    const cpfNormalizado = normalizarCPF(req.body.cpf)
+  const atualizacao = filtrarCampos(req.body, [
+    'nome', 'cpf', 'senhaGov', 'telefone', 'email', 'endereco', 'ativo', 'dataAtualizacao',
+  ])
+  const prox = { ...atual, ...atualizacao }
+  if (atualizacao.cpf) {
+    const cpfNormalizado = normalizarCPF(atualizacao.cpf)
     const duplicada = db.pessoas.find((p) => p.id !== req.params.id && normalizarCPF(p.cpf) === cpfNormalizado)
     if (duplicada) return res.status(409).json({ message: 'Já existe outra pessoa com este CPF' })
   }
@@ -118,7 +206,9 @@ app.get('/api/processos', (req, res) => {
 
 app.post('/api/processos', (req, res) => {
   const db = readDb()
-  const novoProcesso = req.body
+  const novoProcesso = filtrarCampos(req.body, [
+    'id', 'pessoaId', 'tipo', 'numero', 'status', 'dataAbertura', 'dataPrazo', 'descricao', 'observacoes',
+  ])
   if (!novoProcesso?.id || !novoProcesso?.pessoaId || !novoProcesso?.tipo) {
     return res.status(400).json({ message: 'Dados inválidos para processo' })
   }
@@ -131,7 +221,10 @@ app.put('/api/processos/:id', (req, res) => {
   const db = readDb()
   const idx = db.processos.findIndex(byId(req.params.id))
   if (idx < 0) return res.status(404).json({ message: 'Processo não encontrado' })
-  db.processos[idx] = { ...db.processos[idx], ...req.body }
+  const atualizacao = filtrarCampos(req.body, [
+    'pessoaId', 'tipo', 'numero', 'status', 'dataAbertura', 'dataPrazo', 'descricao', 'observacoes',
+  ])
+  db.processos[idx] = { ...db.processos[idx], ...atualizacao }
   writeDb(db)
   return res.json(db.processos[idx])
 })
@@ -153,7 +246,9 @@ app.get('/api/documentos-processo', (req, res) => {
 
 app.post('/api/documentos-processo', (req, res) => {
   const db = readDb()
-  const doc = req.body
+  const doc = filtrarCampos(req.body, [
+    'id', 'processoId', 'nome', 'status', 'observacoes', 'dataEntrega',
+  ])
   if (!doc?.id || !doc?.processoId || !doc?.nome) {
     return res.status(400).json({ message: 'Dados inválidos para documento' })
   }
@@ -166,7 +261,8 @@ app.put('/api/documentos-processo/:id', (req, res) => {
   const db = readDb()
   const idx = db.documentosProcesso.findIndex(byId(req.params.id))
   if (idx < 0) return res.status(404).json({ message: 'Documento não encontrado' })
-  db.documentosProcesso[idx] = { ...db.documentosProcesso[idx], ...req.body }
+  const atualizacao = filtrarCampos(req.body, ['nome', 'status', 'observacoes', 'dataEntrega'])
+  db.documentosProcesso[idx] = { ...db.documentosProcesso[idx], ...atualizacao }
   writeDb(db)
   return res.json(db.documentosProcesso[idx])
 })
@@ -193,13 +289,14 @@ app.get('/api/configuracoes/:chave', (req, res) => {
 app.put('/api/configuracoes/:chave', (req, res) => {
   const db = readDb()
   const chave = req.params.chave
-  const valor = req.body?.valor
-  const id = req.body?.id
+  const payload = filtrarCampos(req.body, ['id', 'valor'])
+  const valor = payload?.valor
+  const id = payload?.id
   const idx = db.configuracoes.findIndex((c) => c.chave === chave)
   if (idx >= 0) {
-    db.configuracoes[idx] = { ...db.configuracoes[idx], ...req.body, chave, valor }
+    db.configuracoes[idx] = { ...db.configuracoes[idx], ...payload, chave, valor }
   } else {
-    db.configuracoes.push({ ...req.body, id, chave, valor })
+    db.configuracoes.push({ ...payload, id, chave, valor })
   }
   writeDb(db)
   return res.json(db.configuracoes.find((c) => c.chave === chave))
@@ -223,4 +320,9 @@ const port = Number(process.env.PORT || 3000)
 app.listen(port, '0.0.0.0', () => {
   console.log(`AGUIA servidor local em http://0.0.0.0:${port}`)
   console.log(`Banco de dados: ${DATA_FILE}`)
+  if (API_TOKEN) {
+    console.log('Auth API: habilitada por AGUIA_API_TOKEN')
+  } else {
+    console.log('Auth API: desabilitada (defina AGUIA_API_TOKEN para exigir token)')
+  }
 })
