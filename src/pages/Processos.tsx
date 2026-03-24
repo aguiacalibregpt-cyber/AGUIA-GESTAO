@@ -377,8 +377,19 @@ export const Processos: React.FC<ProcessosProps> = ({ pessoaIdInicial }) => {
     topoRef.current?.scrollIntoView({ behavior: 'smooth' })
   }
 
-  const marcarUltimaConsulta = () => {
-    setCredenciais((c) => c ? { ...c, ultimaConsulta: new Date() } : c)
+  const marcarUltimaConsulta = (quando: Date) => {
+    setCredenciais((c) => c ? { ...c, ultimaConsulta: quando } : c)
+  }
+
+  const atualizarCampoCredenciais = async (atualizacoes: Partial<Processo>, erroPadrao: string) => {
+    if (!credenciais) return false
+    try {
+      await atualizarProcesso(credenciais.processoid, atualizacoes)
+      return true
+    } catch (error) {
+      setMensagem({ tipo: 'error', texto: obterMensagemErro(error, erroPadrao) })
+      return false
+    }
   }
 
   const confirmarExclusao = async () => {
@@ -755,76 +766,84 @@ export const Processos: React.FC<ProcessosProps> = ({ pessoaIdInicial }) => {
                   <button onClick={() => void copiarCredencial(credenciais.cpf!, 'cpf')} className="p-2 hover:bg-gray-100 rounded-lg"><Copy className="w-4 h-4" /></button>
                 </div>
               </div>
-              {credenciais.senhaGov && (
-                <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <p className="text-xs text-gray-500 font-medium">Senha Gov</p>
-                    {!credenciais.mostraEditSenha && (
-                      <button
-                        onClick={() => setCredenciais((c) => c ? { ...c, mostraEditSenha: true } : c)}
-                        className="text-xs text-blue-600 hover:text-blue-700 font-medium"
-                      >
-                        Editar
-                      </button>
-                    )}
-                  </div>
-                  {credenciais.mostraEditSenha ? (
-                    <div className="space-y-3">
-                      <div className="flex items-center gap-2">
-                        <input
-                          type={credenciais.mostrarSenha ? 'text' : 'password'}
-                          value={credenciais.senhaGovEditavel}
-                          onChange={(e) => setCredenciais((c) => c ? { ...c, senhaGovEditavel: e.target.value } : c)}
-                          className="font-mono text-sm flex-1 bg-white px-3 py-2 rounded-lg border border-blue-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        />
-                        <button
-                          onClick={() => setCredenciais((c) => c ? { ...c, mostrarSenha: !c.mostrarSenha } : c)}
-                          className="p-2 hover:bg-gray-100 rounded-lg"
-                        >
-                          {credenciais.mostrarSenha ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                        </button>
-                      </div>
-                      <div className="flex gap-2">
-                        <button
-                          onClick={salvarSenhaGov}
-                          disabled={credenciais.salvandoSenha}
-                          className="flex-1 px-3 py-2 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 disabled:opacity-50"
-                        >
-                          {credenciais.salvandoSenha ? 'Salvando...' : 'Salvar'}
-                        </button>
-                        <button
-                          onClick={() => setCredenciais((c) => c ? { ...c, mostraEditSenha: false, senhaGovEditavel: credenciais.senhaGov || '' } : c)}
-                          disabled={credenciais.salvandoSenha}
-                          className="flex-1 px-3 py-2 bg-gray-300 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-400 disabled:opacity-50"
-                        >
-                          Cancelar
-                        </button>
-                      </div>
-                    </div>
-                  ) : (
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <p className="text-xs text-gray-500 font-medium">Senha Gov</p>
+                  {!credenciais.mostraEditSenha && (
+                    <button
+                      onClick={() => setCredenciais((c) => c ? { ...c, mostraEditSenha: true } : c)}
+                      className="text-xs text-blue-600 hover:text-blue-700 font-medium"
+                    >
+                      Editar
+                    </button>
+                  )}
+                </div>
+                {credenciais.mostraEditSenha ? (
+                  <div className="space-y-3">
                     <div className="flex items-center gap-2">
-                      <span className="font-mono text-sm flex-1 bg-gray-50 px-3 py-2 rounded-lg border">
-                        {credenciais.mostrarSenha ? credenciais.senhaGov : '••••••••'}
-                      </span>
+                      <input
+                        type={credenciais.mostrarSenha ? 'text' : 'password'}
+                        value={credenciais.senhaGovEditavel}
+                        onChange={(e) => setCredenciais((c) => c ? { ...c, senhaGovEditavel: e.target.value } : c)}
+                        className="font-mono text-sm flex-1 bg-white px-3 py-2 rounded-lg border border-blue-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
                       <button
                         onClick={() => setCredenciais((c) => c ? { ...c, mostrarSenha: !c.mostrarSenha } : c)}
                         className="p-2 hover:bg-gray-100 rounded-lg"
                       >
                         {credenciais.mostrarSenha ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                       </button>
-                      <button onClick={() => void copiarCredencial(credenciais.senhaGov!, 'senha')} className="p-2 hover:bg-gray-100 rounded-lg"><Copy className="w-4 h-4" /></button>
                     </div>
-                  )}
-                </div>
-              )}
+                    <div className="flex gap-2">
+                      <button
+                        onClick={salvarSenhaGov}
+                        disabled={credenciais.salvandoSenha}
+                        className="flex-1 px-3 py-2 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 disabled:opacity-50"
+                      >
+                        {credenciais.salvandoSenha ? 'Salvando...' : 'Salvar'}
+                      </button>
+                      <button
+                        onClick={() => setCredenciais((c) => c ? { ...c, mostraEditSenha: false, senhaGovEditavel: credenciais.senhaGov || '' } : c)}
+                        disabled={credenciais.salvandoSenha}
+                        className="flex-1 px-3 py-2 bg-gray-300 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-400 disabled:opacity-50"
+                      >
+                        Cancelar
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono text-sm flex-1 bg-gray-50 px-3 py-2 rounded-lg border">
+                      {credenciais.senhaGov ? (credenciais.mostrarSenha ? credenciais.senhaGov : '••••••••') : 'Sem senha cadastrada'}
+                    </span>
+                    <button
+                      onClick={() => setCredenciais((c) => c ? { ...c, mostrarSenha: !c.mostrarSenha } : c)}
+                      className="p-2 hover:bg-gray-100 rounded-lg"
+                      disabled={!credenciais.senhaGov}
+                      title={credenciais.senhaGov ? 'Mostrar/Ocultar senha' : 'Sem senha para exibir'}
+                    >
+                      {credenciais.mostrarSenha ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                    <button
+                      onClick={() => credenciais.senhaGov && void copiarCredencial(credenciais.senhaGov, 'senha')}
+                      className="p-2 hover:bg-gray-100 rounded-lg disabled:opacity-40 disabled:cursor-not-allowed"
+                      disabled={!credenciais.senhaGov}
+                      title={credenciais.senhaGov ? 'Copiar senha' : 'Sem senha para copiar'}
+                    >
+                      <Copy className="w-4 h-4" />
+                    </button>
+                  </div>
+                )}
+              </div>
               <div className="border-t border-gray-200 pt-4 space-y-4">
                 <div>
                   <label className="block text-xs font-medium text-gray-700 mb-2">Status</label>
                   <select
                     value={credenciais.status}
                     onChange={(e) => {
-                      setCredenciais((c) => c ? { ...c, status: e.target.value as StatusProcesso } : c)
-                      void atualizarProcesso(credenciais.processoid, { status: e.target.value as StatusProcesso })
+                      const novoStatus = e.target.value as StatusProcesso
+                      setCredenciais((c) => c ? { ...c, status: novoStatus } : c)
+                      void atualizarCampoCredenciais({ status: novoStatus }, 'Erro ao atualizar status')
                     }}
                     className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-600 transition-colors"
                   >
@@ -837,10 +856,8 @@ export const Processos: React.FC<ProcessosProps> = ({ pessoaIdInicial }) => {
                   <label className="block text-xs font-medium text-gray-700 mb-2">Observações</label>
                   <textarea
                     value={credenciais.observacoes}
-                    onChange={(e) => {
-                      setCredenciais((c) => c ? { ...c, observacoes: e.target.value } : c)
-                      void atualizarProcesso(credenciais.processoid, { observacoes: e.target.value })
-                    }}
+                    onChange={(e) => setCredenciais((c) => c ? { ...c, observacoes: e.target.value } : c)}
+                    onBlur={() => void atualizarCampoCredenciais({ observacoes: credenciais.observacoes }, 'Erro ao atualizar observações')}
                     placeholder="Adicione observações sobre este processo..."
                     className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-600 resize-none transition-colors"
                     rows={3}
@@ -850,9 +867,10 @@ export const Processos: React.FC<ProcessosProps> = ({ pessoaIdInicial }) => {
                   <div className="flex items-center justify-between mb-2">
                     <label className="block text-xs font-medium text-gray-700">Última Consulta</label>
                     <button
-                      onClick={() => {
-                        marcarUltimaConsulta()
-                        void atualizarProcesso(credenciais.processoid, { dataUltimaConsulta: new Date() })
+                      onClick={async () => {
+                        const agora = new Date()
+                        const ok = await atualizarCampoCredenciais({ dataUltimaConsulta: agora }, 'Erro ao marcar última consulta')
+                        if (ok) marcarUltimaConsulta(agora)
                       }}
                       className="text-xs px-2 py-1 bg-red-600 text-white rounded hover:bg-red-700 font-medium transition-colors"
                     >
