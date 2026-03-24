@@ -63,6 +63,35 @@ function Invoke-PnpmInstallWithRetry {
   throw "Falha no pnpm install apos tentativas de recuperacao."
 }
 
+function Invoke-NpmInstallWithRetry {
+  param(
+    [switch]$IncludeDevDependencies
+  )
+
+  $args = @('install', '--no-audit', '--no-fund')
+  if (-not $IncludeDevDependencies) {
+    $args += '--omit=dev'
+  }
+
+  for ($tentativa = 1; $tentativa -le 2; $tentativa++) {
+    Write-Log "[INFO] Executando: npm $($args -join ' ') (tentativa $tentativa/2)"
+    & npm @args
+    if ($LASTEXITCODE -eq 0) {
+      return
+    }
+
+    if ($tentativa -eq 1) {
+      Write-Log "[AVISO] npm install falhou (codigo $LASTEXITCODE). Tentando recuperacao automatica..."
+      if (Test-Path "node_modules") {
+        cmd /c "rmdir /s /q node_modules" | Out-Null
+      }
+      & npm cache verify | Out-Null
+    }
+  }
+
+  throw "Falha no npm install apos tentativas de recuperacao."
+}
+
 Write-Log "============================================"
 Write-Log "AGUIA - Inicializacao Segura do Servidor LAN"
 Write-Log "============================================"
@@ -70,6 +99,7 @@ Write-Log "Pasta: $repoRoot"
 Write-Log "Log: $logFile"
 
 $pnpm = Get-Command pnpm -ErrorAction SilentlyContinue
+$npm = Get-Command npm -ErrorAction SilentlyContinue
 $node = Get-Command node -ErrorAction SilentlyContinue
 
 if (-not $node) {
@@ -78,21 +108,59 @@ if (-not $node) {
 }
 
 try {
-  if ($pnpm) {
+  if ($repoRoot -match '\s') {
+    Write-Log "[AVISO] Caminho com espacos detectado. Em alguns Windows/antivirus isso pode causar ENOENT no install."
+  }
+
+  $precisaBuild = -not (Test-Path "dist/index.html")
+  $includeDevDependencies = $precisaBuild
+
+  if ($pnpm -or $npm) {
     if (-not (Test-Path "node_modules")) {
       Write-Log "[INFO] Instalando dependencias..."
-      Invoke-PnpmInstallWithRetry -IncludeDevDependencies
-    }
-
-    if (-not (Test-Path "dist/index.html")) {
-      Write-Log "[INFO] Build nao encontrado. Gerando build..."
-      pnpm build
-      if ($LASTEXITCODE -ne 0) {
-        throw "Falha no pnpm build (codigo $LASTEXITCODE)."
+      if ($pnpm) {
+        try {
+          Invoke-PnpmInstallWithRetry -IncludeDevDependencies:$includeDevDependencies
+        } catch {
+          Write-Log "[AVISO] pnpm indisponivel/instavel nesta maquina: $($_.Exception.Message)"
+          if ($npm) {
+            Write-Log "[INFO] Alternando para npm install como fallback..."
+            Invoke-NpmInstallWithRetry -IncludeDevDependencies:$includeDevDependencies
+          } else {
+            throw
+          }
+        }
+      } elseif ($npm) {
+        Invoke-NpmInstallWithRetry -IncludeDevDependencies:$includeDevDependencies
       }
     }
-  } elseif (-not (Test-Path "dist/index.html")) {
-    throw "Build nao encontrado em dist/index.html e pnpm nao esta disponivel para gerar build."
+
+    if ($precisaBuild) {
+      Write-Log "[INFO] Build nao encontrado. Gerando build..."
+      if ($pnpm) {
+        & pnpm build
+        if ($LASTEXITCODE -eq 0) {
+          $precisaBuild = $false
+        } elseif ($npm) {
+          Write-Log "[AVISO] pnpm build falhou (codigo $LASTEXITCODE). Tentando npm run build..."
+          & npm run build
+          if ($LASTEXITCODE -eq 0) {
+            $precisaBuild = $false
+          }
+        }
+      } elseif ($npm) {
+        & npm run build
+        if ($LASTEXITCODE -eq 0) {
+          $precisaBuild = $false
+        }
+      }
+
+      if ($precisaBuild) {
+        throw "Falha ao gerar build com pnpm/npm."
+      }
+    }
+  } elseif ($precisaBuild) {
+    throw "Build nao encontrado em dist/index.html e pnpm/npm nao estao disponiveis para gerar build."
   }
 
   $env:AGUIA_API_TOKEN = $ApiToken.Trim()
