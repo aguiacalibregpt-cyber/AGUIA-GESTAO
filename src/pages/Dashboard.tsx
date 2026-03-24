@@ -228,19 +228,22 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-gray-200">
-                  <th scope="col" className="text-left py-2 px-3 text-xs font-semibold text-gray-500 uppercase">Número</th>
+                  <th scope="col" className="text-left py-2 px-3 text-xs font-semibold text-gray-500 uppercase">Nome</th>
                   <th scope="col" className="text-left py-2 px-3 text-xs font-semibold text-gray-500 uppercase">Cadastro</th>
                   <th scope="col" className="text-left py-2 px-3 text-xs font-semibold text-gray-500 uppercase">Prazo</th>
                 </tr>
               </thead>
               <tbody>
-                {processosRecentes.map((p) => (
-                  <tr key={p.id} className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
-                    <td className="py-2 px-3 text-gray-800 font-medium">{p.numero || '(sem número)'}</td>
-                    <td className="py-2 px-3 text-gray-600">{formatarData(p.dataCadastro)}</td>
-                    <td className="py-2 px-3 text-gray-600">{p.dataPrazo ? formatarData(p.dataPrazo) : '-'}</td>
-                  </tr>
-                ))}
+                {processosRecentes.map((p) => {
+                  const pessoa = pessoas.find((pes) => pes.id === p.pessoaId)
+                  return (
+                    <tr key={p.id} className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
+                      <td className="py-2 px-3 text-gray-800 font-medium">{pessoa?.nome || '(pessoa não encontrada)'}</td>
+                      <td className="py-2 px-3 text-gray-600">{formatarData(p.dataCadastro)}</td>
+                      <td className="py-2 px-3 text-gray-600">{p.dataPrazo ? formatarData(p.dataPrazo) : '-'}</td>
+                    </tr>
+                  )
+                })}
               </tbody>
             </table>
           </div>
