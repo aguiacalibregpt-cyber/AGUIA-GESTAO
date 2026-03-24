@@ -17,5 +17,16 @@ if "%AGUIA_ALLOWED_ORIGINS%"=="" (
 )
 
 echo [INFO] Allowed origins: %AGUIA_ALLOWED_ORIGINS%
+echo [INFO] Log: %CD%\logs\aguia-startup-secure.log
 
 powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\windows\start-server-secure.ps1" -ApiToken "%AGUIA_API_TOKEN%" -AllowedOrigins "%AGUIA_ALLOWED_ORIGINS%"
+set "APP_EXIT=%errorlevel%"
+
+if not "%APP_EXIT%"=="0" (
+  echo [ERRO] Falha ao iniciar servidor (codigo %APP_EXIT%).
+  echo [ERRO] Verifique o log: %CD%\logs\aguia-startup-secure.log
+  pause
+  exit /b %APP_EXIT%
+)
+
+echo [SUCESSO] Execucao concluida sem erros.

@@ -8,45 +8,79 @@ $ErrorActionPreference = "Stop"
 $repoRoot = Resolve-Path (Join-Path $PSScriptRoot "..\..")
 Set-Location $repoRoot
 
-Write-Host "============================================"
-Write-Host "AGUIA - Inicializacao Segura do Servidor LAN"
-Write-Host "============================================"
-Write-Host "Pasta: $repoRoot"
+$logDir = Join-Path $repoRoot "logs"
+if (-not (Test-Path $logDir)) {
+  New-Item -ItemType Directory -Path $logDir | Out-Null
+}
+$logFile = Join-Path $logDir "aguia-startup-secure.log"
+
+function Write-Log {
+  param([string]$Message)
+  $line = "[{0}] {1}" -f (Get-Date -Format "yyyy-MM-dd HH:mm:ss"), $Message
+  Add-Content -Path $logFile -Value $line
+  Write-Host $Message
+}
+
+Write-Log "============================================"
+Write-Log "AGUIA - Inicializacao Segura do Servidor LAN"
+Write-Log "============================================"
+Write-Log "Pasta: $repoRoot"
+Write-Log "Log: $logFile"
 
 $pnpm = Get-Command pnpm -ErrorAction SilentlyContinue
 $node = Get-Command node -ErrorAction SilentlyContinue
 
 if (-not $node) {
-  throw "node nao encontrado. Instale Node.js LTS."
+  Write-Log "[ERRO] node nao encontrado. Instale Node.js LTS."
+  exit 1
 }
 
-if ($pnpm) {
-  if (-not (Test-Path "node_modules")) {
-    Write-Host "[INFO] Instalando dependencias..."
-    pnpm install
+try {
+  if ($pnpm) {
+    if (-not (Test-Path "node_modules")) {
+      Write-Log "[INFO] Instalando dependencias..."
+      pnpm install
+      if ($LASTEXITCODE -ne 0) {
+        throw "Falha no pnpm install (codigo $LASTEXITCODE)."
+      }
+    }
+
+    if (-not (Test-Path "dist/index.html")) {
+      Write-Log "[INFO] Build nao encontrado. Gerando build..."
+      pnpm build
+      if ($LASTEXITCODE -ne 0) {
+        throw "Falha no pnpm build (codigo $LASTEXITCODE)."
+      }
+    }
+  } elseif (-not (Test-Path "dist/index.html")) {
+    throw "Build nao encontrado em dist/index.html e pnpm nao esta disponivel para gerar build."
   }
 
-  if (-not (Test-Path "dist/index.html")) {
-    Write-Host "[INFO] Build nao encontrado. Gerando build..."
-    pnpm build
+  $env:AGUIA_API_TOKEN = $ApiToken.Trim()
+  $env:AGUIA_ALLOWED_ORIGINS = $AllowedOrigins
+
+  if ([string]::IsNullOrWhiteSpace($env:AGUIA_API_TOKEN)) {
+    Write-Log "[AVISO] AGUIA_API_TOKEN vazio. Auth API desabilitada para esta execucao."
+  } else {
+    Write-Log "[INFO] AGUIA_API_TOKEN configurado."
   }
-} elseif (-not (Test-Path "dist/index.html")) {
-  throw "Build nao encontrado em dist/index.html e pnpm nao esta disponivel para gerar build."
-}
+  Write-Log "[INFO] AGUIA_ALLOWED_ORIGINS=$AllowedOrigins"
+  Write-Log "[INFO] Iniciando servidor em http://0.0.0.0:3000"
 
-$env:AGUIA_API_TOKEN = $ApiToken.Trim()
-$env:AGUIA_ALLOWED_ORIGINS = $AllowedOrigins
+  if ($pnpm) {
+    pnpm server
+  } else {
+    node .\server\index.mjs
+  }
 
-if ([string]::IsNullOrWhiteSpace($env:AGUIA_API_TOKEN)) {
-  Write-Host "[AVISO] AGUIA_API_TOKEN vazio. Auth API desabilitada para esta execucao."
-} else {
-  Write-Host "[INFO] AGUIA_API_TOKEN configurado."
-}
-Write-Host "[INFO] AGUIA_ALLOWED_ORIGINS=$AllowedOrigins"
-Write-Host "[INFO] Iniciando servidor em http://0.0.0.0:3000"
+  if ($LASTEXITCODE -ne 0) {
+    throw "Servidor encerrou com codigo $LASTEXITCODE."
+  }
 
-if ($pnpm) {
-  pnpm server
-} else {
-  node .\server\index.mjs
+  Write-Log "[SUCESSO] Servidor finalizado normalmente."
+  exit 0
+} catch {
+  Write-Log "[ERRO] $($_.Exception.Message)"
+  Write-Log "[ERRO] Consulte este log para detalhes: $logFile"
+  exit 1
 }
