@@ -422,22 +422,22 @@ export const Processos: React.FC<ProcessosProps> = ({ pessoaIdInicial }) => {
       {/* Filtros */}
       <div className="bg-white rounded-2xl shadow-sm ring-1 ring-black/5 p-4 space-y-3">
         <div className="relative">
-          <Search className="absolute left-3 top-3 w-4 h-4 text-gray-400" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
           <input
             type="text"
             placeholder="Buscar por nº processo, tipo, nome ou CPF..."
             value={busca}
             onChange={(e) => setBusca(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-500"
+            className="w-full h-10 pl-10 pr-4 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-500"
           />
         </div>
-        <div className="flex gap-2 flex-wrap">
-          <div className="flex flex-col flex-1 sm:flex-none">
+        <div className="grid grid-cols-1 lg:grid-cols-[minmax(180px,220px)_minmax(180px,220px)_1fr] gap-3 items-end">
+          <div className="flex flex-col min-w-0">
             <label className="text-xs font-medium text-gray-500 mb-1">Status</label>
             <select
             value={filtroStatus}
             onChange={(e) => setFiltroStatus(e.target.value as FiltroStatus)}
-            className="text-sm border border-gray-300 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-red-500 w-full sm:w-auto"
+            className="h-10 text-sm border border-gray-300 rounded-lg px-3 focus:outline-none focus:ring-2 focus:ring-red-500 w-full bg-white"
           >
             <option value="todos">Todos os status</option>
             {STATUS_OPTIONS.map((o) => (
@@ -445,12 +445,12 @@ export const Processos: React.FC<ProcessosProps> = ({ pessoaIdInicial }) => {
             ))}
           </select>
           </div>
-          <div className="flex flex-col flex-1 sm:flex-none">
+          <div className="flex flex-col min-w-0">
             <label className="text-xs font-medium text-gray-500 mb-1">Tipo</label>
             <select
             value={filtroTipo}
             onChange={(e) => setFiltroTipo(e.target.value as FiltroTipo)}
-            className="text-sm border border-gray-300 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-red-500 w-full sm:w-auto"
+            className="h-10 text-sm border border-gray-300 rounded-lg px-3 focus:outline-none focus:ring-2 focus:ring-red-500 w-full bg-white"
           >
             <option value="todos">Todos os tipos</option>
             {TIPOS_OPTIONS.map((o) => (
@@ -458,12 +458,14 @@ export const Processos: React.FC<ProcessosProps> = ({ pessoaIdInicial }) => {
             ))}
           </select>
           </div>
-          <div className="flex flex-1 sm:flex-none gap-1 p-1 rounded-xl bg-gray-100 ring-1 ring-gray-200">
+          <div className="flex flex-col min-w-0">
+            <label className="text-xs font-medium text-gray-500 mb-1">Prazo</label>
+            <div className="h-10 flex gap-1 p-1 rounded-xl bg-gray-100 ring-1 ring-gray-200">
             {(['todos', 'vencidos', 'hoje', 'semana'] as const).map((v) => (
               <button
                 key={v}
                 onClick={() => setFiltroVenc(v)}
-                className={`text-sm px-3 py-1.5 rounded-lg border transition-all duration-150 font-medium flex-1 sm:flex-none focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500 ${filtroVenc === v
+                className={`text-sm px-3 rounded-lg border transition-all duration-150 font-medium flex-1 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500 whitespace-nowrap ${filtroVenc === v
                   ? 'bg-white text-red-700 border-red-200 shadow-sm'
                   : 'bg-transparent text-gray-700 border-transparent hover:bg-white/80 hover:text-gray-900'
                 }`}
@@ -471,6 +473,7 @@ export const Processos: React.FC<ProcessosProps> = ({ pessoaIdInicial }) => {
                 {v === 'todos' ? 'Todos prazos' : v === 'vencidos' ? 'Vencidos' : v === 'hoje' ? 'Vence hoje' : 'Esta semana'}
               </button>
             ))}
+            </div>
           </div>
         </div>
         <div className="flex gap-2 pt-2 border-t border-gray-200">
