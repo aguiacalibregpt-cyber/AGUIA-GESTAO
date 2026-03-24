@@ -458,15 +458,20 @@ export const Processos: React.FC<ProcessosProps> = ({ pessoaIdInicial }) => {
             ))}
           </select>
           </div>
-          {(['todos', 'vencidos', 'hoje', 'semana'] as const).map((v) => (
-            <button
-              key={v}
-              onClick={() => setFiltroVenc(v)}
-              className={`text-sm px-2 py-1.5 rounded-lg border transition-colors flex-1 sm:flex-none ${filtroVenc === v ? 'bg-red-700 text-white border-red-700' : 'border-gray-300 hover:bg-gray-50'}`}
-            >
-              {v === 'todos' ? 'Todos prazos' : v === 'vencidos' ? 'Vencidos' : v === 'hoje' ? 'Vence hoje' : 'Esta semana'}
-            </button>
-          ))}
+          <div className="flex flex-1 sm:flex-none gap-1 p-1 rounded-xl bg-gray-100 ring-1 ring-gray-200">
+            {(['todos', 'vencidos', 'hoje', 'semana'] as const).map((v) => (
+              <button
+                key={v}
+                onClick={() => setFiltroVenc(v)}
+                className={`text-sm px-3 py-1.5 rounded-lg border transition-all duration-150 font-medium flex-1 sm:flex-none focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500 ${filtroVenc === v
+                  ? 'bg-white text-red-700 border-red-200 shadow-sm'
+                  : 'bg-transparent text-gray-700 border-transparent hover:bg-white/80 hover:text-gray-900'
+                }`}
+              >
+                {v === 'todos' ? 'Todos prazos' : v === 'vencidos' ? 'Vencidos' : v === 'hoje' ? 'Vence hoje' : 'Esta semana'}
+              </button>
+            ))}
+          </div>
         </div>
         <div className="flex gap-2 pt-2 border-t border-gray-200">
           <button
@@ -513,8 +518,9 @@ export const Processos: React.FC<ProcessosProps> = ({ pessoaIdInicial }) => {
               const diasRestantes = processo.dataPrazo ? calcularDiasRestantes(processo.dataPrazo) : null
               const vencido = diasRestantes !== null && diasRestantes < 0
               const venceHoje = diasRestantes === 0
+              const processoAberto = ultimoProcessoComDocumentos === processo.id || ultimoProcessoComCredenciais === processo.id
               return (
-                <div key={processo.id} className={`bg-white rounded-2xl shadow-sm ring-1 p-4 ${vencido ? 'ring-red-200' : 'ring-black/5'}`}>
+                <div key={processo.id} className={`bg-white rounded-2xl shadow-sm ring-1 p-4 ${processoAberto ? 'ring-sky-200 bg-sky-50/40' : vencido ? 'ring-red-200' : 'ring-black/5'}`}>
                   <p className="font-semibold text-gray-900">{pessoa?.nome || 'Pessoa não encontrada'}</p>
                   <p className="text-xs text-gray-500 font-mono mt-1">{pessoa?.cpf || 'Sem CPF'}</p>
                   <p className="text-sm text-gray-700 mt-2">{nomesTipoProcesso[processo.tipo]}</p>
@@ -548,7 +554,7 @@ export const Processos: React.FC<ProcessosProps> = ({ pessoaIdInicial }) => {
                     <button
                       onClick={() => setDetalhesId(processo.id)}
                       title="Ver documentos"
-                      className="p-1.5 text-purple-600 hover:bg-purple-50 rounded-lg transition-colors"
+                      className={`p-1.5 rounded-lg transition-colors ${processoAberto ? 'text-sky-700 bg-sky-100 hover:bg-sky-200' : 'text-purple-600 hover:bg-purple-50'}`}
                     >
                       <ClipboardList className="w-4 h-4" />
                     </button>
@@ -593,7 +599,7 @@ export const Processos: React.FC<ProcessosProps> = ({ pessoaIdInicial }) => {
                     const processoAberto = ultimoProcessoComDocumentos === processo.id || ultimoProcessoComCredenciais === processo.id
                     let bgClass = 'hover:bg-gray-50'
                     if (processoAberto) {
-                      bgClass = 'bg-green-50 hover:bg-green-100'
+                      bgClass = 'bg-sky-50 hover:bg-sky-100'
                     } else if (vencido) {
                       bgClass = 'bg-red-50 hover:bg-red-100'
                     }
@@ -673,7 +679,7 @@ export const Processos: React.FC<ProcessosProps> = ({ pessoaIdInicial }) => {
                             <button
                               onClick={() => setDetalhesId(processo.id)}
                               title="Ver documentos"
-                              className="p-1.5 text-purple-600 hover:bg-purple-50 rounded-lg transition-colors"
+                              className={`p-1.5 rounded-lg transition-colors ${processoAberto ? 'text-sky-700 bg-sky-100 hover:bg-sky-200' : 'text-purple-600 hover:bg-purple-50'}`}
                             >
                               <ClipboardList className="w-4 h-4" />
                             </button>
