@@ -26,7 +26,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\windows\start-
 set "APP_EXIT=%errorlevel%"
 
 if not "%APP_EXIT%"=="0" (
-  echo [ERRO] Falha ao iniciar servidor (codigo %APP_EXIT%).
+  echo [ERRO] Falha ao iniciar servidor. Codigo %APP_EXIT%.
   echo [ERRO] Verifique o log: %CD%\logs\aguia-startup-secure.log
   pause
   exit /b %APP_EXIT%

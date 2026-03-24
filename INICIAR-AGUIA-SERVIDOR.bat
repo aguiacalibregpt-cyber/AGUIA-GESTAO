@@ -40,8 +40,8 @@ if errorlevel 1 (
   )
 
   if defined PORT_PID (
-    echo [ERRO] Porta 3000 ja esta em uso por outro processo (PID: %PORT_PID%).
-    echo [%date% %time%] ERRO: porta 3000 ocupada (PID: %PORT_PID%).>>"%LOG_FILE%"
+    echo [ERRO] Porta 3000 ja esta em uso por outro processo. PID: %PORT_PID%.
+    echo [%date% %time%] ERRO: porta 3000 ocupada. PID: %PORT_PID%.>>"%LOG_FILE%"
     pause
     exit /b 1
   )
@@ -94,7 +94,7 @@ if not exist "dist\index.html" (
   )
 )
 if exist "dist\index.html" (
-  echo [%date% %time%] INFO: build OK (dist\index.html encontrado).>>"%LOG_FILE%"
+  echo [%date% %time%] INFO: build OK. dist\index.html encontrado.>>"%LOG_FILE%"
 )
 
 echo [%date% %time%] INFO: verificando porta 3000...>>"%LOG_FILE%"
@@ -104,8 +104,8 @@ for /f "tokens=5" %%P in ('netstat -ano ^| findstr /R /C:":3000[ ]" ^| findstr "
 )
 
 if defined PORT_PID (
-  echo [ERRO] Porta 3000 ja esta em uso por outro processo (PID: %PORT_PID%).
-  echo [%date% %time%] ERRO: porta 3000 ocupada (PID: %PORT_PID%).>>"%LOG_FILE%"
+  echo [ERRO] Porta 3000 ja esta em uso por outro processo. PID: %PORT_PID%.
+  echo [%date% %time%] ERRO: porta 3000 ocupada. PID: %PORT_PID%.>>"%LOG_FILE%"
   echo [INFO] Processo atual na porta:
   powershell -NoProfile -ExecutionPolicy Bypass -Command "Get-CimInstance Win32_Process -Filter \"ProcessId=%PORT_PID%\" | Select-Object Name, ProcessId, CommandLine | Format-List"
   echo.
