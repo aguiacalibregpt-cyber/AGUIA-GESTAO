@@ -19,9 +19,15 @@ type DocumentoPersistido = Omit<DocumentoProcesso, 'dataEntrega'> & {
   dataEntrega?: string
 }
 
+const parseDateSafeOpt = (v?: string): Date | undefined => {
+  if (!v) return undefined
+  const d = new Date(v)
+  return Number.isNaN(d.getTime()) ? undefined : d
+}
+
 const parseDocumento = (d: DocumentoPersistido): DocumentoProcesso => ({
   ...d,
-  dataEntrega: d.dataEntrega ? new Date(d.dataEntrega) : undefined,
+  dataEntrega: parseDateSafeOpt(d.dataEntrega),
 })
 
 const serializarAtualizacao = (u: Partial<DocumentoProcesso>) => ({
@@ -35,9 +41,10 @@ export const useDocumentosStore = create<DocumentosStore>((set, get) => ({
   erro: null,
 
   carregarDocumentosPorProcesso: async (processoId) => {
+    if (get().carregando) return
     set({ carregando: true, erro: null })
     try {
-      const documentos = (await api.get<DocumentoPersistido[]>(`/documentos-processo?processoId=${encodeURIComponent(processoId)}`)).map(parseDocumento)
+      const documentos = ((await api.get<DocumentoPersistido[]>(`/documentos-processo?processoId=${encodeURIComponent(processoId)}`)) ?? []).map(parseDocumento)
       documentos.sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'))
       set({ documentosProcesso: documentos })
     } catch (error) {

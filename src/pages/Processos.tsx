@@ -89,7 +89,8 @@ const dataParaInput = (data?: Date): string => {
 export const Processos: React.FC<ProcessosProps> = ({ pessoaIdInicial }) => {
   const { processos, carregarProcessos, adicionarProcesso, atualizarProcesso, deletarProcesso, erro, carregando: carregandoProcessos } =
     useProcessosStore()
-  const { pessoas, carregarPessoas, adicionarPessoa, carregando: carregandoPessoas } = usePessoasStore()
+  const { pessoas, carregarPessoas, adicionarPessoa, carregando: carregandoPessoas, erro: erroPessoas } = usePessoasStore()
+  const erroConexao = Boolean(erro || erroPessoas)
   const topoRef = React.useRef<HTMLDivElement>(null)
   const [mostraModal, setMostraModal] = useState(false)
   const [editandoId, setEditandoId] = useState<string | null>(null)
@@ -131,6 +132,7 @@ export const Processos: React.FC<ProcessosProps> = ({ pessoaIdInicial }) => {
   })
   const [formErrosNovaP, setFormErrosNovaP] = useState<Partial<Record<string, string>>>({})
   const [salvandoNovaP, setSalvandoNovaP] = useState(false)
+  const [salvandoProcesso, setSalvandoProcesso] = useState(false)
   const carregandoInicial = Boolean(carregandoProcessos || carregandoPessoas) && processos.length === 0
   const atualizandoEmSegundoPlano = Boolean(carregandoProcessos || carregandoPessoas) && !carregandoInicial
 
@@ -225,6 +227,7 @@ export const Processos: React.FC<ProcessosProps> = ({ pessoaIdInicial }) => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (salvandoProcesso) return
     if (!formData.tipo) {
       setFormErros({ tipo: 'Selecione o tipo de processo' })
       return
@@ -241,6 +244,7 @@ export const Processos: React.FC<ProcessosProps> = ({ pessoaIdInicial }) => {
       descricao: formData.descricao,
       observacoes: formData.observacoes,
     }
+    setSalvandoProcesso(true)
     try {
       if (editandoId) {
         await atualizarProcesso(editandoId, payload)
@@ -254,6 +258,8 @@ export const Processos: React.FC<ProcessosProps> = ({ pessoaIdInicial }) => {
       }
     } catch (error) {
       setMensagem({ tipo: 'error', texto: obterMensagemErro(error, 'Erro ao salvar processo') })
+    } finally {
+      setSalvandoProcesso(false)
     }
   }
 
@@ -401,7 +407,7 @@ export const Processos: React.FC<ProcessosProps> = ({ pessoaIdInicial }) => {
         subtitle={`${processadosFiltrados.length} processo(s)`}
         actions={
           <div className="flex flex-wrap items-center justify-end gap-2">
-            <BackgroundSyncBadge active={atualizandoEmSegundoPlano} />
+            <BackgroundSyncBadge active={atualizandoEmSegundoPlano} erro={erroConexao} />
             <Button onClick={abrirModalNovo} className="w-full sm:w-auto bg-white/10 border border-white/20 hover:bg-white/20 text-white">
               <Plus className="w-5 h-5" />
               Novo Processo
@@ -426,7 +432,9 @@ export const Processos: React.FC<ProcessosProps> = ({ pessoaIdInicial }) => {
           />
         </div>
         <div className="flex gap-2 flex-wrap">
-          <select
+          <div className="flex flex-col flex-1 sm:flex-none">
+            <label className="text-xs font-medium text-gray-500 mb-1">Status</label>
+            <select
             value={filtroStatus}
             onChange={(e) => setFiltroStatus(e.target.value as FiltroStatus)}
             className="text-sm border border-gray-300 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-red-500 w-full sm:w-auto"
@@ -436,7 +444,10 @@ export const Processos: React.FC<ProcessosProps> = ({ pessoaIdInicial }) => {
               <option key={o.value} value={o.value}>{o.label}</option>
             ))}
           </select>
-          <select
+          </div>
+          <div className="flex flex-col flex-1 sm:flex-none">
+            <label className="text-xs font-medium text-gray-500 mb-1">Tipo</label>
+            <select
             value={filtroTipo}
             onChange={(e) => setFiltroTipo(e.target.value as FiltroTipo)}
             className="text-sm border border-gray-300 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-red-500 w-full sm:w-auto"
@@ -446,6 +457,7 @@ export const Processos: React.FC<ProcessosProps> = ({ pessoaIdInicial }) => {
               <option key={o.value} value={o.value}>{o.label}</option>
             ))}
           </select>
+          </div>
           {(['todos', 'vencidos', 'hoje', 'semana'] as const).map((v) => (
             <button
               key={v}
@@ -470,12 +482,11 @@ export const Processos: React.FC<ProcessosProps> = ({ pessoaIdInicial }) => {
 
       {carregandoInicial && (
         <div className="space-y-3">
-          {Array.from({ length: 5 }).map((_, idx) => (
+          {[{w1: 'w-3/4', w2: 'w-1/4', w3: 'w-1/3'}, {w1: 'w-2/3', w2: 'w-1/3', w3: 'w-1/2'}, {w1: 'w-1/2', w2: 'w-1/4', w3: 'w-2/5'}, {w1: 'w-3/5', w2: 'w-1/3', w3: 'w-1/3'}, {w1: 'w-2/3', w2: 'w-1/4', w3: 'w-1/2'}].map((s, idx) => (
             <div key={`processo-skeleton-${idx}`} className="bg-white rounded-2xl shadow-sm ring-1 ring-black/5 p-4 space-y-3">
-              <Skeleton className="h-5 w-2/3" />
-              <Skeleton className="h-4 w-1/3" />
-              <Skeleton className="h-4 w-1/2" />
-              <Skeleton className="h-8 w-full" />
+              <Skeleton className={`h-5 ${s.w1}`} />
+              <Skeleton className={`h-4 ${s.w2}`} />
+              <Skeleton className={`h-4 ${s.w3}`} />
             </div>
           ))}
         </div>
@@ -483,15 +494,16 @@ export const Processos: React.FC<ProcessosProps> = ({ pessoaIdInicial }) => {
 
       {/* Lista */}
       {!carregandoInicial && processadosFiltrados.length === 0 ? (
-        <div className="bg-white rounded-2xl shadow-sm ring-1 ring-black/5 p-10 text-center text-gray-500">
+        <div className="bg-white rounded-2xl shadow-sm ring-1 ring-black/5 p-10 text-center">
           <FileText className="w-12 h-12 mx-auto mb-3 text-gray-300" />
-          <p className="font-medium">Nenhum processo encontrado</p>
-          {!busca && filtroStatus === 'todos' && filtroTipo === 'todos' && filtroVenc === 'todos' && (
-            <Button onClick={abrirModalNovo} className="mt-4">
-              <Plus className="w-4 h-4" />
-              Cadastrar primeiro processo
-            </Button>
+          <p className="font-medium text-gray-700">Nenhum processo encontrado</p>
+          {(busca || filtroStatus !== 'todos' || filtroTipo !== 'todos' || filtroVenc !== 'todos') && (
+            <p className="text-sm text-gray-500 mt-1">Tente ajustar os filtros para encontrar resultados.</p>
           )}
+          <Button onClick={abrirModalNovo} className="mt-4">
+            <Plus className="w-4 h-4" />
+            Cadastrar processo
+          </Button>
         </div>
       ) : (
         <div className="space-y-3">
@@ -565,11 +577,11 @@ export const Processos: React.FC<ProcessosProps> = ({ pessoaIdInicial }) => {
               <table className="min-w-full text-sm">
                 <thead className="bg-gray-50 border-b border-gray-100">
                   <tr>
-                    <th className="text-left px-4 py-3 font-semibold text-gray-600">Pessoa</th>
-                    <th className="text-left px-4 py-3 font-semibold text-gray-600">Tipo</th>
-                    <th className="text-left px-4 py-3 font-semibold text-gray-600">Status</th>
-                    <th className="text-left px-4 py-3 font-semibold text-gray-600">Data Prazo</th>
-                    <th className="text-right px-4 py-3 font-semibold text-gray-600">Ações</th>
+                    <th scope="col" className="text-left px-4 py-3 font-semibold text-gray-600">Pessoa</th>
+                    <th scope="col" className="text-left px-4 py-3 font-semibold text-gray-600">Tipo</th>
+                    <th scope="col" className="text-left px-4 py-3 font-semibold text-gray-600">Status</th>
+                    <th scope="col" className="text-left px-4 py-3 font-semibold text-gray-600">Data Prazo</th>
+                    <th scope="col" className="text-right px-4 py-3 font-semibold text-gray-600">Ações</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -693,8 +705,8 @@ export const Processos: React.FC<ProcessosProps> = ({ pessoaIdInicial }) => {
 
       {/* Painel credenciais */}
       {credenciais && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setCredenciais(null)}>
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm" onClick={(e) => e.stopPropagation()}>
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in" role="dialog" aria-modal="true" aria-label="Credenciais Gov.br" onClick={() => setCredenciais(null)}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md animate-slide-up" onClick={(e) => e.stopPropagation()}>
             <div className="bg-gradient-to-r from-zinc-950 via-red-900 to-zinc-900 px-6 py-4 rounded-t-2xl flex items-center justify-between border-b border-red-900/50">
               <h2 className="text-lg font-bold text-white">Credenciais Gov.br</h2>
               <button onClick={() => setCredenciais(null)} className="text-white/60 hover:text-white transition-colors"><X className="w-5 h-5" /></button>
@@ -824,13 +836,18 @@ export const Processos: React.FC<ProcessosProps> = ({ pessoaIdInicial }) => {
 
       {/* Modal novo/editar processo */}
       {mostraModal && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-start sm:items-center justify-center p-4 overflow-y-auto" onClick={() => setMostraModal(false)}>
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg my-4" onClick={(e) => e.stopPropagation()}>
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-start sm:items-center justify-center p-4 overflow-y-auto animate-fade-in" role="dialog" aria-modal="true" aria-label={editandoId ? 'Editar Processo' : 'Novo Processo'} onClick={() => setMostraModal(false)}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg my-4 animate-slide-up" onClick={(e) => e.stopPropagation()}>
             <div className="bg-gradient-to-r from-zinc-950 via-red-950 to-black px-6 py-4 rounded-t-2xl flex items-center justify-between">
               <h2 className="text-lg font-bold text-white">{editandoId ? 'Editar Processo' : 'Novo Processo'}</h2>
-              <button onClick={() => setMostraModal(false)} className="text-white/70 hover:text-white"><X className="w-5 h-5" /></button>
+              <button onClick={() => setMostraModal(false)} className="text-white/70 hover:text-white" aria-label="Fechar">
+                <X className="w-5 h-5" />
+              </button>
             </div>
-            <form onSubmit={handleSubmit} className="p-6 space-y-4">
+            <form onSubmit={handleSubmit} className="p-6 space-y-5">
+              {/* Seção: Identificação */}
+              <fieldset className="space-y-4">
+                <legend className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Identificação</legend>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">👤 Pessoa *</label>
                 <select
@@ -868,6 +885,10 @@ export const Processos: React.FC<ProcessosProps> = ({ pessoaIdInicial }) => {
                 </select>
                 {formErros.tipo && <p className="text-xs text-red-600 mt-1">{formErros.tipo}</p>}
               </div>
+              </fieldset>
+              {/* Seção: Detalhes */}
+              <fieldset className="space-y-4 border-t border-gray-100 pt-4">
+                <legend className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Detalhes</legend>
               <Input
                 label="🔢 Número do Processo"
                 value={formData.numero}
@@ -902,6 +923,10 @@ export const Processos: React.FC<ProcessosProps> = ({ pessoaIdInicial }) => {
                   error={formErros.dataPrazo}
                 />
               </div>
+              </fieldset>
+              {/* Seção: Informações complementares */}
+              <fieldset className="space-y-4 border-t border-gray-100 pt-4">
+                <legend className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Informações complementares</legend>
               <Input
                 label="📝 Descrição"
                 value={formData.descricao}
@@ -914,9 +939,10 @@ export const Processos: React.FC<ProcessosProps> = ({ pessoaIdInicial }) => {
                 onChange={(e) => setFormData({ ...formData, observacoes: e.target.value })}
                 placeholder="Observações internas"
               />
+              </fieldset>
               <div className="flex gap-3 pt-2">
                 <Button type="button" variant="secondary" onClick={() => setMostraModal(false)} className="flex-1">Cancelar</Button>
-                <Button type="submit" className="flex-1">{editandoId ? 'Salvar' : 'Cadastrar'}</Button>
+                <Button type="submit" className="flex-1" disabled={salvandoProcesso}>{salvandoProcesso ? 'Salvando...' : editandoId ? 'Salvar' : 'Cadastrar'}</Button>
               </div>
             </form>
           </div>
@@ -925,8 +951,8 @@ export const Processos: React.FC<ProcessosProps> = ({ pessoaIdInicial }) => {
 
       {/* Modal criar nova pessoa */}
       {mostraCriarPessoa && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-start sm:items-center justify-center p-4 overflow-y-auto" onClick={() => setMostraCriarPessoa(false)}>
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg my-4" onClick={(e) => e.stopPropagation()}>
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[60] flex items-start sm:items-center justify-center p-4 overflow-y-auto animate-fade-in" role="dialog" aria-modal="true" aria-label="Nova Pessoa" onClick={() => setMostraCriarPessoa(false)}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg my-4 animate-slide-up" onClick={(e) => e.stopPropagation()}>
             <div className="bg-gradient-to-r from-zinc-950 via-red-950 to-black px-6 py-4 rounded-t-2xl flex items-center justify-between">
               <h2 className="text-lg font-bold text-white">Nova Pessoa</h2>
               <button onClick={() => setMostraCriarPessoa(false)} className="text-white/70 hover:text-white"><X className="w-5 h-5" /></button>

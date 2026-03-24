@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo } from 'react'
 import { Users, FileText, CheckCircle, AlertCircle, BarChart3, Settings, Bell } from 'lucide-react'
-import { Button, PageHeader, Skeleton, BackgroundSyncBadge } from '../components'
+import { Button, PageHeader, Skeleton, BackgroundSyncBadge, Alert } from '../components'
 import { usePessoasStore } from '../stores/pessoasStore'
 import { useProcessosStore } from '../stores/processosStore'
 import { useConfiguracoesStore } from '../stores/configuracoesStore'
@@ -14,8 +14,9 @@ interface DashboardProps {
 }
 
 export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
-  const { pessoas, carregarPessoas, carregando: carregandoPessoas } = usePessoasStore()
-  const { processos, carregarProcessos, carregando: carregandoProcessos } = useProcessosStore()
+  const { pessoas, carregarPessoas, carregando: carregandoPessoas, erro: erroPessoas } = usePessoasStore()
+  const { processos, carregarProcessos, carregando: carregandoProcessos, erro: erroProcessos } = useProcessosStore()
+  const erroConexao = Boolean(erroPessoas || erroProcessos)
   const { obterConfiguracao } = useConfiguracoesStore()
   const [ultimoBackup, setUltimoBackup] = React.useState<string | null>(null)
   const carregandoInicial = Boolean(carregandoPessoas || carregandoProcessos) && pessoas.length === 0 && processos.length === 0
@@ -77,9 +78,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
         subtitle="Sistema de Gestão de Processos Administrativos"
         actions={
           <div className="flex flex-wrap items-center gap-2">
-            <BackgroundSyncBadge active={atualizandoEmSegundoPlano} />
+            <BackgroundSyncBadge active={atualizandoEmSegundoPlano} erro={erroConexao} />
             {diasSemBackup !== null && diasSemBackup >= 7 ? (
-              <div className="flex items-center gap-2 bg-yellow-500/20 border border-yellow-400/50 rounded-lg px-3 py-2 text-yellow-200 text-xs">
+              <div className="flex items-center gap-2 bg-amber-100 border border-amber-300 rounded-lg px-3 py-2 text-amber-900 text-xs font-medium shadow-sm">
                 <Bell className="w-4 h-4" />
                 Backup há {diasSemBackup} dias — faça um agora!
               </div>
@@ -88,25 +89,30 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
         }
       />
 
+      {/* Alerta de erro de conexão */}
+      {erroConexao && (
+        <Alert type="error" message={erroPessoas || erroProcessos || 'Erro ao conectar com o servidor'} />
+      )}
+
       {/* Cards KPI */}
       {carregandoInicial ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {Array.from({ length: 4 }).map((_, idx) => (
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+          {[{w: 'w-20'}, {w: 'w-24'}, {w: 'w-16'}, {w: 'w-28'}].map((s, idx) => (
             <div key={`kpi-skeleton-${idx}`} className="bg-white rounded-2xl shadow-sm ring-1 ring-black/5 p-5">
-              <Skeleton className="h-4 w-24 mb-3" />
-              <Skeleton className="h-8 w-16" />
+              <Skeleton className={`h-3 ${s.w} mb-4`} />
+              <Skeleton className="h-8 w-14" />
             </div>
           ))}
         </div>
       ) : (
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
         <div className="bg-white rounded-2xl shadow-sm ring-1 ring-black/5 p-5 border-t-4 border-blue-500 hover:shadow-md transition-shadow">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-xs text-gray-500 uppercase tracking-wide font-semibold">Pessoas</p>
               <p className="text-3xl font-bold text-gray-900 mt-1">{pessoas.length}</p>
             </div>
-            <Users className="w-8 h-8 text-blue-400" />
+            <Users className="w-6 h-6 text-blue-400" />
           </div>
         </div>
         <div className="bg-white rounded-2xl shadow-sm ring-1 ring-black/5 p-5 border-t-4 border-purple-500 hover:shadow-md transition-shadow">
@@ -115,7 +121,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
               <p className="text-xs text-gray-500 uppercase tracking-wide font-semibold">Processos</p>
               <p className="text-3xl font-bold text-gray-900 mt-1">{stats.total}</p>
             </div>
-            <FileText className="w-8 h-8 text-purple-400" />
+            <FileText className="w-6 h-6 text-purple-400" />
           </div>
         </div>
         <div className="bg-white rounded-2xl shadow-sm ring-1 ring-black/5 p-5 border-t-4 border-green-500 hover:shadow-md transition-shadow">
@@ -124,7 +130,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
               <p className="text-xs text-gray-500 uppercase tracking-wide font-semibold">Deferidos</p>
               <p className="text-3xl font-bold text-gray-900 mt-1">{stats.deferidos}</p>
             </div>
-            <CheckCircle className="w-8 h-8 text-green-400" />
+            <CheckCircle className="w-6 h-6 text-green-400" />
           </div>
         </div>
         <div className="bg-white rounded-2xl shadow-sm ring-1 ring-black/5 p-5 border-t-4 border-red-500 hover:shadow-md transition-shadow">
@@ -133,7 +139,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
               <p className="text-xs text-gray-500 uppercase tracking-wide font-semibold">Vencidos</p>
               <p className="text-3xl font-bold text-gray-900 mt-1">{stats.vencidos}</p>
             </div>
-            <AlertCircle className="w-8 h-8 text-red-400" />
+            <AlertCircle className="w-6 h-6 text-red-400" />
           </div>
         </div>
       </div>
@@ -155,23 +161,23 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
 
       {/* Resumo e Ações rápidas */}
       {carregandoInicial ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div className="bg-white rounded-2xl shadow-sm ring-1 ring-black/5 p-6 space-y-3">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="bg-white rounded-2xl shadow-sm ring-1 ring-black/5 p-5 space-y-3">
             <Skeleton className="h-5 w-28" />
             <Skeleton className="h-4 w-full" />
-            <Skeleton className="h-3 w-full" />
+            <Skeleton className="h-2 w-full" />
             <Skeleton className="h-4 w-2/3" />
           </div>
-          <div className="bg-white rounded-2xl shadow-sm ring-1 ring-black/5 p-6 space-y-3">
+          <div className="bg-white rounded-2xl shadow-sm ring-1 ring-black/5 p-5 space-y-3">
             <Skeleton className="h-5 w-36" />
             <Skeleton className="h-10 w-full" />
             <Skeleton className="h-10 w-full" />
-            <Skeleton className="h-10 w-full" />
+            <Skeleton className="h-10 w-3/4" />
           </div>
         </div>
       ) : (
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div className="bg-white rounded-2xl shadow-sm ring-1 ring-black/5 p-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="bg-white rounded-2xl shadow-sm ring-1 ring-black/5 p-5">
           <div className="flex items-center gap-2 mb-4">
             <BarChart3 className="w-5 h-5 text-gray-600" />
             <h2 className="text-lg font-semibold tracking-tight text-gray-900">Resumo</h2>
@@ -194,7 +200,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
           </div>
         </div>
 
-        <div className="bg-white rounded-2xl shadow-sm ring-1 ring-black/5 p-6">
+        <div className="bg-white rounded-2xl shadow-sm ring-1 ring-black/5 p-5">
           <h2 className="text-lg font-semibold tracking-tight text-gray-900 mb-4">Ações Rápidas</h2>
           <div className="space-y-2">
             <Button variant="primary" className="w-full justify-start" onClick={() => onNavigate('pessoas')}>
@@ -216,20 +222,20 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
 
       {/* Processos recentes */}
       {processosRecentes.length > 0 ? (
-        <div className="bg-white rounded-2xl shadow-sm ring-1 ring-black/5 p-6">
+        <div className="bg-white rounded-2xl shadow-sm ring-1 ring-black/5 p-5">
           <h2 className="text-lg font-semibold tracking-tight text-gray-900 mb-4">Processos Recentes</h2>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-gray-200">
-                  <th className="text-left py-2 px-3 text-xs font-semibold text-gray-500 uppercase">Número</th>
-                  <th className="text-left py-2 px-3 text-xs font-semibold text-gray-500 uppercase">Cadastro</th>
-                  <th className="text-left py-2 px-3 text-xs font-semibold text-gray-500 uppercase">Prazo</th>
+                  <th scope="col" className="text-left py-2 px-3 text-xs font-semibold text-gray-500 uppercase">Número</th>
+                  <th scope="col" className="text-left py-2 px-3 text-xs font-semibold text-gray-500 uppercase">Cadastro</th>
+                  <th scope="col" className="text-left py-2 px-3 text-xs font-semibold text-gray-500 uppercase">Prazo</th>
                 </tr>
               </thead>
               <tbody>
                 {processosRecentes.map((p) => (
-                  <tr key={p.id} className="border-b border-gray-100 hover:bg-gray-50">
+                  <tr key={p.id} className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
                     <td className="py-2 px-3 text-gray-800 font-medium">{p.numero || '(sem número)'}</td>
                     <td className="py-2 px-3 text-gray-600">{formatarData(p.dataCadastro)}</td>
                     <td className="py-2 px-3 text-gray-600">{p.dataPrazo ? formatarData(p.dataPrazo) : '-'}</td>
@@ -240,9 +246,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
           </div>
         </div>
       ) : (
-        <div className="bg-white rounded-2xl shadow-sm ring-1 ring-black/5 p-6 text-center text-gray-500">
-          <p className="font-medium">Nenhum processo cadastrado ainda</p>
-          <p className="text-sm mt-1">Cadastre um processo para começar a acompanhar pelo dashboard.</p>
+        <div className="bg-white rounded-2xl shadow-sm ring-1 ring-black/5 p-10 text-center">
+          <FileText className="w-12 h-12 mx-auto mb-3 text-gray-300" />
+          <p className="font-medium text-gray-700">Nenhum processo cadastrado ainda</p>
+          <p className="text-sm text-gray-500 mt-1">Cadastre um processo para começar a acompanhar pelo dashboard.</p>
           <Button className="mt-4" onClick={() => onNavigate('processos')}>Ir para Processos</Button>
         </div>
       )}

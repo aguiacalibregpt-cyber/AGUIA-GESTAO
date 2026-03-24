@@ -14,12 +14,11 @@ interface PessoasStore {
   pessoas: Pessoa[]
   carregando: boolean
   erro: string | null
+  avisos: string[]
   carregarPessoas: () => Promise<void>
   adicionarPessoa: (pessoaData: Omit<Pessoa, 'id' | 'dataCadastro' | 'dataAtualizacao'>) => Promise<Pessoa>
   atualizarPessoa: (id: string, atualizacoes: Partial<Pessoa>) => Promise<void>
   deletarPessoa: (id: string) => Promise<void>
-  buscarPessoa: (id: string) => Promise<Pessoa | undefined>
-  buscarPorCPF: (cpf: string) => Promise<Pessoa | undefined>
 }
 
 type PessoaPersistida = Omit<Pessoa, 'dataCadastro' | 'dataAtualizacao'> & {
@@ -27,10 +26,15 @@ type PessoaPersistida = Omit<Pessoa, 'dataCadastro' | 'dataAtualizacao'> & {
   dataAtualizacao: string
 }
 
+const parseDateSafe = (v: string): Date => {
+  const d = new Date(v)
+  return Number.isNaN(d.getTime()) ? new Date() : d
+}
+
 const parsePessoa = (p: PessoaPersistida): Pessoa => ({
   ...p,
-  dataCadastro: new Date(p.dataCadastro),
-  dataAtualizacao: new Date(p.dataAtualizacao),
+  dataCadastro: parseDateSafe(p.dataCadastro),
+  dataAtualizacao: parseDateSafe(p.dataAtualizacao),
 })
 
 const serializarPessoa = (p: Pessoa): PessoaPersistida => ({
@@ -43,11 +47,14 @@ export const usePessoasStore = create<PessoasStore>((set, get) => ({
   pessoas: [],
   carregando: false,
   erro: null,
+  avisos: [],
 
   carregarPessoas: async () => {
+    if (get().carregando) return
     set({ carregando: true, erro: null })
     try {
-      const pessoasBrutas = (await api.get<PessoaPersistida[]>('/pessoas')).map(parsePessoa)
+      const pessoasBrutas = ((await api.get<PessoaPersistida[]>('/pessoas')) ?? []).map(parsePessoa)
+      const falhasDescriptografia: string[] = []
       const pessoas = await Promise.all(
         pessoasBrutas.map(async (pessoa) => {
           if (!pessoa.senhaGov) return pessoa
@@ -66,6 +73,7 @@ export const usePessoasStore = create<PessoasStore>((set, get) => ({
               return { ...pessoa, senhaGov: senhaTextoPlano }
             } catch {
               registrarAcessoSenhaGov('falha_descriptografia', { pessoaId: pessoa.id })
+              falhasDescriptografia.push(pessoa.nome)
               return { ...pessoa, senhaGov: undefined }
             }
           }
@@ -82,7 +90,9 @@ export const usePessoasStore = create<PessoasStore>((set, get) => ({
         }),
       )
       pessoas.sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'))
-      set({ pessoas })
+      set({ pessoas, avisos: falhasDescriptografia.length > 0
+        ? [`Falha ao descriptografar senha de: ${falhasDescriptografia.join(', ')}`]
+        : [] })
     } catch (error) {
       set({ erro: obterMensagemErro(error, 'Erro ao carregar pessoas') })
     } finally {
@@ -171,42 +181,6 @@ export const usePessoasStore = create<PessoasStore>((set, get) => ({
       set({ pessoas: get().pessoas.filter((p) => p.id !== id) })
     } catch (error) {
       set({ erro: obterMensagemErro(error, 'Erro ao deletar pessoa') })
-      throw error
-    }
-  },
-
-  buscarPessoa: async (id) => {
-    try {
-      const pessoa = get().pessoas.find((p) => p.id === id)
-      if (!pessoa?.senhaGov) return pessoa
-      if (!senhaGovEstaCriptografada(pessoa.senhaGov)) return pessoa
-      try {
-        const senhaTextoPlano = await descriptografarSenhaGov(pessoa.senhaGov, pessoa.cpf)
-        return { ...pessoa, senhaGov: senhaTextoPlano }
-      } catch {
-        registrarAcessoSenhaGov('falha_descriptografia', { pessoaId: pessoa.id })
-        return { ...pessoa, senhaGov: undefined }
-      }
-    } catch (error) {
-      set({ erro: obterMensagemErro(error, 'Erro ao buscar pessoa') })
-      throw error
-    }
-  },
-
-  buscarPorCPF: async (cpf) => {
-    try {
-      const resultado = get().pessoas.find((p) => normalizarCPF(p.cpf) === normalizarCPF(cpf))
-      if (!resultado?.senhaGov) return resultado
-      if (!senhaGovEstaCriptografada(resultado.senhaGov)) return resultado
-      try {
-        const senhaTextoPlano = await descriptografarSenhaGov(resultado.senhaGov, resultado.cpf)
-        return { ...resultado, senhaGov: senhaTextoPlano }
-      } catch {
-        registrarAcessoSenhaGov('falha_descriptografia', { pessoaId: resultado.id })
-        return { ...resultado, senhaGov: undefined }
-      }
-    } catch (error) {
-      set({ erro: obterMensagemErro(error, 'Erro ao buscar pessoa por CPF') })
       throw error
     }
   },

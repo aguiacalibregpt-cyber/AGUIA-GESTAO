@@ -5,3 +5,23 @@
 :root {
   color-scheme: light;
 }
+
+/* Animação fade-in para modais e overlays */
+@layer utilities {
+  .animate-fade-in {
+    animation: fadeIn 200ms ease-out both;
+  }
+  .animate-slide-up {
+    animation: slideUp 250ms ease-out both;
+  }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: translateY(0); }
+}

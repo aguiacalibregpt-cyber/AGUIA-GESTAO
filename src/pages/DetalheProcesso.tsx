@@ -167,8 +167,8 @@ interface DetalheProcessoProps {
 }
 
 export const DetalheProcesso: React.FC<DetalheProcessoProps> = ({ processoId, onVoltar }) => {
-  const { processos, atualizarStatusProcesso, carregarProcessos } = useProcessosStore()
-  const { pessoas, carregarPessoas } = usePessoasStore()
+  const { processos, atualizarStatusProcesso, carregarProcessos, erro: erroProcessos } = useProcessosStore()
+  const { pessoas, carregarPessoas, erro: erroPessoas } = usePessoasStore()
   const {
     documentosProcesso,
     carregando: carregandoDocumentos,
@@ -402,13 +402,22 @@ export const DetalheProcesso: React.FC<DetalheProcessoProps> = ({ processoId, on
           )
         }
         title={nomesTipoProcesso[processo.tipo]}
-        subtitle={`${pessoa?.nome || 'Pessoa não encontrada'} · ${pessoa?.cpf || '-'}${processo.numero ? ` · Nº ${processo.numero}` : ''}${processo.dataPrazo ? ` · Prazo: ${formatarData(processo.dataPrazo)}` : ''}`}
+        subtitle={
+          <span className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-0">
+            <span>{pessoa?.nome || 'Pessoa não encontrada'}</span>
+            <span className="hidden sm:inline"> · </span>
+            <span className="font-mono text-xs">{pessoa?.cpf || '-'}</span>
+            {processo.numero && <><span className="hidden sm:inline"> · </span><span>Nº {processo.numero}</span></>}
+            {processo.dataPrazo && <><span className="hidden sm:inline"> · </span><span>Prazo: {formatarData(processo.dataPrazo)}</span></>}
+          </span>
+        }
         actions={
           <div className="flex gap-2 flex-wrap">
-            <BackgroundSyncBadge active={atualizandoEmSegundoPlano} />
+            <BackgroundSyncBadge active={atualizandoEmSegundoPlano} erro={Boolean(erroProcessos || erroPessoas)} />
             <button
               onClick={imprimirChecklist}
               title="Imprimir checklist"
+              aria-label="Imprimir checklist"
               className="flex items-center gap-1 text-xs sm:text-sm bg-white/10 border border-white/20 hover:bg-white/20 px-3 py-1.5 rounded-lg transition-colors"
             >
               <Printer className="w-4 h-4" />
@@ -418,6 +427,7 @@ export const DetalheProcesso: React.FC<DetalheProcessoProps> = ({ processoId, on
               onClick={() => void sincronizarChecklist()}
               disabled={sincronizando}
               title="Sincronizar checklist"
+              aria-label="Sincronizar checklist"
               className="flex items-center gap-1 text-xs sm:text-sm bg-white/10 border border-white/20 hover:bg-white/20 px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50"
             >
               <RefreshCw className={`w-4 h-4 ${sincronizando ? 'animate-spin' : ''}`} />
@@ -487,6 +497,7 @@ export const DetalheProcesso: React.FC<DetalheProcessoProps> = ({ processoId, on
                       key={s}
                       onClick={() => void handleStatusDoc(doc.id, s)}
                       title={nomesStatusDocumento[s]}
+                      aria-label={`${nomesStatusDocumento[s]}: ${doc.nome}`}
                       className={`text-xs px-2 py-1 rounded-md border transition-colors ${doc.status === s ? coresStatusDocumento[s] + ' border-current' : 'border-gray-200 text-gray-400 hover:bg-gray-100'}`}
                     >
                       {s === StatusDocumento.PENDENTE ? '?' : s === StatusDocumento.ENTREGUE ? '✓' : s === StatusDocumento.REJEITADO ? '✗' : 'N/A'}

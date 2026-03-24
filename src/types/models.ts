@@ -49,14 +49,6 @@ export interface Pessoa {
   ativo: boolean
 }
 
-export interface DocumentoRequerido {
-  id: string
-  nome: string
-  descricao?: string
-  obrigatorio: boolean
-  tiposProcesso: TipoProcesso[]
-}
-
 export interface DocumentoProcesso {
   id: string
   processoId: string
@@ -110,16 +102,4 @@ export interface BackupHistorico {
   payload: string
 }
 
-export interface RelatorioProcesso {
-  processoId: string
-  pessoaNome: string
-  pessoaCPF: string
-  tipoProcesso: TipoProcesso
-  statusProcesso: StatusProcesso
-  documentosTotal: number
-  documentosEntregues: number
-  documentosPendentes: number
-  percentualConclusao: number
-  diasDecorridos: number
-  diasRestantes?: number
-}
+

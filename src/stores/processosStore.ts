@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { Processo, StatusProcesso, TipoProcesso } from '../types/models'
+import type { Processo, StatusProcesso } from '../types/models'
 import { api } from '../lib/api'
 import { gerarId, obterMensagemErro } from '../utils/robustness'
 
@@ -8,16 +8,12 @@ interface ProcessosStore {
   carregando: boolean
   erro: string | null
   carregarProcessos: () => Promise<void>
-  carregarProcessosPorPessoa: (pessoaId: string) => Promise<void>
   adicionarProcesso: (
     processo: Omit<Processo, 'id' | 'dataCadastro' | 'dataAtualizacao' | 'documentos'>,
   ) => Promise<Processo>
   atualizarProcesso: (id: string, atualizacoes: Partial<Processo>) => Promise<void>
   atualizarStatusProcesso: (id: string, novoStatus: StatusProcesso) => Promise<void>
   deletarProcesso: (id: string) => Promise<void>
-  buscarProcesso: (id: string) => Promise<Processo | undefined>
-  filtrarProcessos: (filtro: { pessoaId?: string; tipo?: TipoProcesso; status?: StatusProcesso }) => void
-  limparFiltros: () => void
 }
 
 type ProcessoPersistido = Omit<Processo, 'dataCadastro' | 'dataAtualizacao' | 'dataAbertura' | 'dataPrazo' | 'dataFechamento' | 'dataRestituido' | 'dataUltimaConsulta'> & {
@@ -30,15 +26,26 @@ type ProcessoPersistido = Omit<Processo, 'dataCadastro' | 'dataAtualizacao' | 'd
   dataUltimaConsulta?: string
 }
 
+const parseDateSafe = (v: string): Date => {
+  const d = new Date(v)
+  return Number.isNaN(d.getTime()) ? new Date() : d
+}
+
+const parseDateSafeOpt = (v?: string): Date | undefined => {
+  if (!v) return undefined
+  const d = new Date(v)
+  return Number.isNaN(d.getTime()) ? undefined : d
+}
+
 const parseProcesso = (p: ProcessoPersistido): Processo => ({
   ...p,
-  dataCadastro: new Date(p.dataCadastro),
-  dataAtualizacao: new Date(p.dataAtualizacao),
-  dataAbertura: new Date(p.dataAbertura),
-  dataPrazo: p.dataPrazo ? new Date(p.dataPrazo) : undefined,
-  dataFechamento: p.dataFechamento ? new Date(p.dataFechamento) : undefined,
-  dataRestituido: p.dataRestituido ? new Date(p.dataRestituido) : undefined,
-  dataUltimaConsulta: p.dataUltimaConsulta ? new Date(p.dataUltimaConsulta) : undefined,
+  dataCadastro: parseDateSafe(p.dataCadastro),
+  dataAtualizacao: parseDateSafe(p.dataAtualizacao),
+  dataAbertura: parseDateSafe(p.dataAbertura),
+  dataPrazo: parseDateSafeOpt(p.dataPrazo),
+  dataFechamento: parseDateSafeOpt(p.dataFechamento),
+  dataRestituido: parseDateSafeOpt(p.dataRestituido),
+  dataUltimaConsulta: parseDateSafeOpt(p.dataUltimaConsulta),
 })
 
 const toIso = (d?: Date) => (d ? d.toISOString() : undefined)
@@ -71,22 +78,10 @@ export const useProcessosStore = create<ProcessosStore>((set, get) => ({
   erro: null,
 
   carregarProcessos: async () => {
+    if (get().carregando) return
     set({ carregando: true, erro: null })
     try {
-      const processos = (await api.get<ProcessoPersistido[]>('/processos')).map(parseProcesso)
-      processos.sort((a, b) => new Date(b.dataCadastro).getTime() - new Date(a.dataCadastro).getTime())
-      set({ processos })
-    } catch (error) {
-      set({ erro: obterMensagemErro(error, 'Erro ao carregar processos') })
-    } finally {
-      set({ carregando: false })
-    }
-  },
-
-  carregarProcessosPorPessoa: async (pessoaId) => {
-    set({ carregando: true, erro: null })
-    try {
-      const processos = (await api.get<ProcessoPersistido[]>(`/processos?pessoaId=${encodeURIComponent(pessoaId)}`)).map(parseProcesso)
+      const processos = ((await api.get<ProcessoPersistido[]>('/processos')) ?? []).map(parseProcesso)
       processos.sort((a, b) => new Date(b.dataCadastro).getTime() - new Date(a.dataCadastro).getTime())
       set({ processos })
     } catch (error) {
@@ -153,22 +148,5 @@ export const useProcessosStore = create<ProcessosStore>((set, get) => ({
       set({ erro: obterMensagemErro(error, 'Erro ao deletar processo') })
       throw error
     }
-  },
-
-  buscarProcesso: async (id) => {
-    try {
-      return get().processos.find((p) => p.id === id)
-    } catch (error) {
-      set({ erro: obterMensagemErro(error, 'Erro ao buscar processo') })
-      throw error
-    }
-  },
-
-  filtrarProcessos: (filtro) => {
-    void filtro
-  },
-
-  limparFiltros: () => {
-    // implementado em nível de componente
   },
 }))

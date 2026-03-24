@@ -3,7 +3,7 @@ import React from 'react'
 interface PageHeaderProps {
   icon: React.ReactNode
   title: string
-  subtitle?: string
+  subtitle?: React.ReactNode
   actions?: React.ReactNode
 }
 

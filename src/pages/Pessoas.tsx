@@ -14,7 +14,7 @@ interface PessoasProps {
 const FORM_INICIAL = { nome: '', cpf: '', senhaGov: '', telefone: '', email: '', endereco: '', ativo: true }
 
 export const Pessoas: React.FC<PessoasProps> = ({ onNovoProcesso }) => {
-  const { pessoas, carregarPessoas, adicionarPessoa, atualizarPessoa, deletarPessoa, erro, carregando } = usePessoasStore()
+  const { pessoas, carregarPessoas, adicionarPessoa, atualizarPessoa, deletarPessoa, erro, carregando, avisos } = usePessoasStore()
   const [mostraModal, setMostraModal] = useState(false)
   const [editandoId, setEditandoId] = useState<string | null>(null)
   const [busca, setBusca] = useState('')
@@ -24,6 +24,7 @@ export const Pessoas: React.FC<PessoasProps> = ({ onNovoProcesso }) => {
   const [formData, setFormData] = useState(FORM_INICIAL)
   const [mostrarTopoBtn, setMostrarTopoBtn] = useState(false)
   const [mostraSenha, setMostraSenha] = useState(false)
+  const [salvandoPessoa, setSalvandoPessoa] = useState(false)
 
   useEffect(() => { void carregarPessoas() }, [carregarPessoas])
   useEffect(() => {
@@ -66,11 +67,13 @@ export const Pessoas: React.FC<PessoasProps> = ({ onNovoProcesso }) => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (salvandoPessoa) return
     const erros = validarPessoaFormulario(formData)
     if (Object.keys(erros).length > 0) {
       setFormErros(erros)
       return
     }
+    setSalvandoPessoa(true)
     try {
       if (editandoId) {
         await atualizarPessoa(editandoId, formData)
@@ -87,6 +90,8 @@ export const Pessoas: React.FC<PessoasProps> = ({ onNovoProcesso }) => {
       }
     } catch (error) {
       setMensagem({ tipo: 'error', texto: obterMensagemErro(error, 'Erro ao salvar pessoa') })
+    } finally {
+      setSalvandoPessoa(false)
     }
   }
 
@@ -111,7 +116,7 @@ export const Pessoas: React.FC<PessoasProps> = ({ onNovoProcesso }) => {
         subtitle={`${pessoas.length} pessoa(s) cadastrada(s)`}
         actions={
           <div className="flex flex-wrap items-center justify-end gap-2">
-            <BackgroundSyncBadge active={atualizandoEmSegundoPlano} />
+            <BackgroundSyncBadge active={atualizandoEmSegundoPlano} erro={Boolean(erro)} />
             <Button
               onClick={abrirModalNovo}
               className="inline-flex items-center"
@@ -126,6 +131,7 @@ export const Pessoas: React.FC<PessoasProps> = ({ onNovoProcesso }) => {
       {/* Alertas */}
       {mensagem && <Alert type={mensagem.tipo} message={mensagem.texto} onClose={() => setMensagem(null)} />}
       {erro && <Alert type="error" message={erro} />}
+      {avisos.map((aviso, i) => <Alert key={i} type="warning" message={aviso} />)}
 
       {/* Busca */}
       <div className="bg-white rounded-2xl shadow-sm ring-1 ring-black/5 p-4">
@@ -146,11 +152,10 @@ export const Pessoas: React.FC<PessoasProps> = ({ onNovoProcesso }) => {
 
       {carregandoInicial && (
         <div className="space-y-3">
-          {Array.from({ length: 4 }).map((_, idx) => (
+          {[{w1: 'w-3/4', w2: 'w-1/4'}, {w1: 'w-2/3', w2: 'w-1/3'}, {w1: 'w-1/2', w2: 'w-1/4'}, {w1: 'w-3/5', w2: 'w-1/3'}].map((s, idx) => (
             <div key={`pessoa-skeleton-${idx}`} className="bg-white rounded-2xl shadow-sm ring-1 ring-black/5 p-4 space-y-3">
-              <Skeleton className="h-5 w-2/3" />
-              <Skeleton className="h-4 w-1/3" />
-              <Skeleton className="h-4 w-1/2" />
+              <Skeleton className={`h-5 ${s.w1}`} />
+              <Skeleton className={`h-4 ${s.w2}`} />
             </div>
           ))}
         </div>
@@ -158,15 +163,16 @@ export const Pessoas: React.FC<PessoasProps> = ({ onNovoProcesso }) => {
 
       {/* Lista */}
       {!carregandoInicial && pessoasFiltradas.length === 0 ? (
-        <div className="bg-white rounded-2xl shadow-sm ring-1 ring-black/5 p-10 text-center text-gray-500">
+        <div className="bg-white rounded-2xl shadow-sm ring-1 ring-black/5 p-10 text-center">
           <Users className="w-12 h-12 mx-auto mb-3 text-gray-300" />
-          <p className="font-medium">{busca ? 'Nenhuma pessoa encontrada' : 'Nenhuma pessoa cadastrada'}</p>
-          {!busca && (
-            <Button onClick={abrirModalNovo} className="mt-4">
-              <Plus className="w-4 h-4" />
-              Cadastrar primeira pessoa
-            </Button>
+          <p className="font-medium text-gray-700">{busca ? 'Nenhuma pessoa encontrada' : 'Nenhuma pessoa cadastrada'}</p>
+          {busca && (
+            <p className="text-sm text-gray-500 mt-1">Tente ajustar a busca para encontrar resultados.</p>
           )}
+          <Button onClick={abrirModalNovo} className="mt-4">
+            <Plus className="w-4 h-4" />
+            Cadastrar pessoa
+          </Button>
         </div>
       ) : (
         <div className="space-y-3">
@@ -181,7 +187,8 @@ export const Pessoas: React.FC<PessoasProps> = ({ onNovoProcesso }) => {
                     <button
                       onClick={() => onNovoProcesso(pessoa.id)}
                       title="Novo processo para esta pessoa"
-                      className="p-1.5 text-green-600 hover:bg-green-50 rounded-lg transition-colors"
+                      aria-label={`Novo processo para ${pessoa.nome}`}
+                      className="p-2 text-green-600 hover:bg-green-50 rounded-lg transition-colors"
                     >
                       <FilePlus2 className="w-4 h-4" />
                     </button>
@@ -189,14 +196,16 @@ export const Pessoas: React.FC<PessoasProps> = ({ onNovoProcesso }) => {
                   <button
                     onClick={() => abrirModalEditar(pessoa)}
                     title="Editar"
-                    className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                    aria-label={`Editar ${pessoa.nome}`}
+                    className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
                   >
                     <Edit2 className="w-4 h-4" />
                   </button>
                   <button
                     onClick={() => setPessoaParaExcluir({ id: pessoa.id, nome: pessoa.nome })}
                     title="Excluir"
-                    className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                    aria-label={`Excluir ${pessoa.nome}`}
+                    className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
                   >
                     <Trash2 className="w-4 h-4" />
                   </button>
@@ -209,10 +218,10 @@ export const Pessoas: React.FC<PessoasProps> = ({ onNovoProcesso }) => {
             <table className="w-full min-w-[680px] text-sm">
               <thead className="bg-gray-50 border-b border-gray-200">
                 <tr>
-                  <th className="text-left font-semibold text-gray-700 px-4 py-3">Nome</th>
-                  <th className="text-left font-semibold text-gray-700 px-4 py-3">CPF</th>
-                  <th className="text-left font-semibold text-gray-700 px-4 py-3">Telefone</th>
-                  <th className="text-right font-semibold text-gray-700 px-4 py-3">Ações</th>
+                  <th scope="col" className="text-left font-semibold text-gray-700 px-4 py-3">Nome</th>
+                  <th scope="col" className="text-left font-semibold text-gray-700 px-4 py-3">CPF</th>
+                  <th scope="col" className="text-left font-semibold text-gray-700 px-4 py-3">Telefone</th>
+                  <th scope="col" className="text-right font-semibold text-gray-700 px-4 py-3">Ações</th>
                 </tr>
               </thead>
               <tbody>
@@ -227,7 +236,8 @@ export const Pessoas: React.FC<PessoasProps> = ({ onNovoProcesso }) => {
                           <button
                             onClick={() => onNovoProcesso(pessoa.id)}
                             title="Novo processo para esta pessoa"
-                            className="p-1.5 text-green-600 hover:bg-green-50 rounded-lg transition-colors"
+                            aria-label={`Novo processo para ${pessoa.nome}`}
+                            className="p-2 text-green-600 hover:bg-green-50 rounded-lg transition-colors"
                           >
                             <FilePlus2 className="w-4 h-4" />
                           </button>
@@ -235,14 +245,16 @@ export const Pessoas: React.FC<PessoasProps> = ({ onNovoProcesso }) => {
                         <button
                           onClick={() => abrirModalEditar(pessoa)}
                           title="Editar"
-                          className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                          aria-label={`Editar ${pessoa.nome}`}
+                          className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
                         >
                           <Edit2 className="w-4 h-4" />
                         </button>
                         <button
                           onClick={() => setPessoaParaExcluir({ id: pessoa.id, nome: pessoa.nome })}
                           title="Excluir"
-                          className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                          aria-label={`Excluir ${pessoa.nome}`}
+                          className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>
@@ -259,18 +271,21 @@ export const Pessoas: React.FC<PessoasProps> = ({ onNovoProcesso }) => {
       {/* Modal cadastro/edição */}
       {mostraModal && (
         <div
-          className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-start sm:items-center justify-center p-4 overflow-y-auto"
+          className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-start sm:items-center justify-center p-4 overflow-y-auto animate-fade-in"
+          role="dialog"
+          aria-modal="true"
+          aria-label={editandoId ? 'Editar Pessoa' : 'Nova Pessoa'}
           onClick={() => setMostraModal(false)}
         >
           <div
-            className="bg-white rounded-2xl shadow-2xl w-full max-w-lg my-4"
+            className="bg-white rounded-2xl shadow-2xl w-full max-w-lg my-4 animate-slide-up"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="bg-gradient-to-r from-zinc-950 via-red-950 to-black px-6 py-4 rounded-t-2xl flex items-center justify-between">
               <h2 className="text-lg font-bold text-white">
                 {editandoId ? 'Editar Pessoa' : 'Nova Pessoa'}
               </h2>
-              <button onClick={() => setMostraModal(false)} className="text-white/70 hover:text-white">
+              <button onClick={() => setMostraModal(false)} className="text-white/70 hover:text-white" aria-label="Fechar">
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -340,8 +355,8 @@ export const Pessoas: React.FC<PessoasProps> = ({ onNovoProcesso }) => {
                 <Button type="button" variant="secondary" onClick={() => setMostraModal(false)} className="flex-1">
                   Cancelar
                 </Button>
-                <Button type="submit" className="flex-1">
-                  {editandoId ? 'Salvar' : 'Cadastrar'}
+                <Button type="submit" className="flex-1" disabled={salvandoPessoa}>
+                  {salvandoPessoa ? 'Salvando...' : editandoId ? 'Salvar' : 'Cadastrar'}
                 </Button>
               </div>
             </form>
@@ -362,8 +377,9 @@ export const Pessoas: React.FC<PessoasProps> = ({ onNovoProcesso }) => {
       {mostrarTopoBtn && (
         <button
           onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
-          className="fixed bottom-6 right-6 bg-red-700 text-white rounded-full p-3 shadow-lg hover:bg-red-800 transition"
+          className="fixed bottom-6 right-6 z-40 bg-red-700 text-white rounded-full p-3 shadow-lg hover:bg-red-800 transition"
           title="Voltar ao topo"
+          aria-label="Voltar ao topo"
         >
           <ChevronUp className="w-5 h-5" />
         </button>

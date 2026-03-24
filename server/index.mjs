@@ -99,6 +99,14 @@ function rateLimitMiddleware(req, res, next) {
 
 app.use('/api', rateLimitMiddleware)
 
+// Limpeza periódica de entries expiradas do rate-limit (a cada 60s)
+setInterval(() => {
+  const agora = Date.now()
+  for (const [chave, bucket] of rateBucket) {
+    if (agora >= bucket.resetAt) rateBucket.delete(chave)
+  }
+}, 60_000)
+
 const pessoaCreateSchema = z.object({
   id: z.string().min(1),
   nome: z.string().min(1),
@@ -124,6 +132,11 @@ const processoCreateSchema = z.object({
   status: z.string().optional(),
   dataAbertura: z.string().optional(),
   dataPrazo: z.string().optional(),
+  dataFechamento: z.string().optional(),
+  dataRestituido: z.string().optional(),
+  dataUltimaConsulta: z.string().optional(),
+  dataCadastro: z.string().optional(),
+  dataAtualizacao: z.string().optional(),
   descricao: z.string().optional(),
   observacoes: z.string().optional(),
 })
@@ -212,8 +225,36 @@ function ensureSecuritySecret() {
 
 function readDb() {
   ensureDataFile()
-  const raw = fs.readFileSync(DATA_FILE, 'utf-8')
-  const parsed = JSON.parse(raw)
+  let raw
+  try {
+    raw = fs.readFileSync(DATA_FILE, 'utf-8')
+  } catch (err) {
+    console.error('[AGUIA] Falha ao ler db.json:', err.message)
+    return { ...DEFAULT_DB }
+  }
+
+  let parsed
+  try {
+    parsed = JSON.parse(raw)
+  } catch (err) {
+    console.error('[AGUIA] db.json corrompido, tentando recuperar do .tmp:', err.message)
+    const tmp = `${DATA_FILE}.tmp`
+    if (fs.existsSync(tmp)) {
+      try {
+        parsed = JSON.parse(fs.readFileSync(tmp, 'utf-8'))
+        // Restaurar db.json a partir do .tmp válido
+        fs.writeFileSync(DATA_FILE, fs.readFileSync(tmp, 'utf-8'))
+        console.log('[AGUIA] db.json restaurado a partir do .tmp com sucesso')
+      } catch {
+        console.error('[AGUIA] .tmp também corrompido, retornando banco vazio')
+        return { ...DEFAULT_DB }
+      }
+    } else {
+      console.error('[AGUIA] Nenhum .tmp disponível, retornando banco vazio')
+      return { ...DEFAULT_DB }
+    }
+  }
+
   return {
     ...DEFAULT_DB,
     ...parsed,
@@ -222,10 +263,6 @@ function readDb() {
     documentosProcesso: Array.isArray(parsed.documentosProcesso) ? parsed.documentosProcesso : [],
     configuracoes: Array.isArray(parsed.configuracoes) ? parsed.configuracoes : [],
   }
-}
-
-function writeDb(db) {
-  fs.writeFileSync(DATA_FILE, JSON.stringify(db, null, 2), 'utf-8')
 }
 
 function writeDbAtomico(db) {
@@ -324,7 +361,7 @@ app.post('/api/pessoas', (req, res) => {
   const duplicada = db.pessoas.find((p) => normalizarCPF(p.cpf) === cpfNormalizado)
   if (duplicada) return res.status(409).json({ message: 'Já existe uma pessoa com este CPF' })
   db.pessoas.push(pessoa)
-  writeDb(db)
+  writeDbAtomico(db)
   return res.status(201).json(pessoa)
 })
 
@@ -346,7 +383,7 @@ app.put('/api/pessoas/:id', (req, res) => {
     if (duplicada) return res.status(409).json({ message: 'Já existe outra pessoa com este CPF' })
   }
   db.pessoas[idx] = prox
-  writeDb(db)
+  writeDbAtomico(db)
   return res.json(prox)
 })
 
@@ -357,7 +394,7 @@ app.delete('/api/pessoas/:id', (req, res) => {
     return res.status(409).json({ message: 'Não é possível excluir uma pessoa com processos vinculados' })
   }
   db.pessoas = db.pessoas.filter((p) => p.id !== req.params.id)
-  writeDb(db)
+  writeDbAtomico(db)
   return res.status(204).send()
 })
 
@@ -373,7 +410,9 @@ app.get('/api/processos', (req, res) => {
 app.post('/api/processos', (req, res) => {
   const db = readDb()
   const novoProcesso = filtrarCampos(req.body, [
-    'id', 'pessoaId', 'tipo', 'numero', 'status', 'dataAbertura', 'dataPrazo', 'descricao', 'observacoes',
+    'id', 'pessoaId', 'tipo', 'numero', 'status', 'dataAbertura', 'dataPrazo',
+    'dataFechamento', 'dataRestituido', 'dataUltimaConsulta',
+    'dataCadastro', 'dataAtualizacao', 'descricao', 'observacoes',
   ])
   const parsedProcesso = validarPayload(processoCreateSchema, novoProcesso, res, 'Dados inválidos para processo')
   if (!parsedProcesso) return
@@ -385,7 +424,7 @@ app.post('/api/processos', (req, res) => {
     return res.status(400).json({ message: 'Pessoa vinculada ao processo não encontrada' })
   }
   db.processos.push(processo)
-  writeDb(db)
+  writeDbAtomico(db)
   return res.status(201).json(processo)
 })
 
@@ -394,7 +433,9 @@ app.put('/api/processos/:id', (req, res) => {
   const idx = db.processos.findIndex(byId(req.params.id))
   if (idx < 0) return res.status(404).json({ message: 'Processo não encontrado' })
   const atualizacao = filtrarCampos(req.body, [
-    'pessoaId', 'tipo', 'numero', 'status', 'dataAbertura', 'dataPrazo', 'descricao', 'observacoes',
+    'pessoaId', 'tipo', 'numero', 'status', 'dataAbertura', 'dataPrazo',
+    'dataFechamento', 'dataRestituido', 'dataUltimaConsulta',
+    'dataAtualizacao', 'descricao', 'observacoes',
   ])
   const parsedAtualizacao = validarPayload(processoUpdateSchema, atualizacao, res, 'Dados inválidos para processo')
   if (!parsedAtualizacao) return
@@ -403,7 +444,7 @@ app.put('/api/processos/:id', (req, res) => {
     return res.status(400).json({ message: 'Pessoa vinculada ao processo não encontrada' })
   }
   db.processos[idx] = { ...db.processos[idx], ...atualizacaoValida }
-  writeDb(db)
+  writeDbAtomico(db)
   return res.json(db.processos[idx])
 })
 
@@ -411,7 +452,7 @@ app.delete('/api/processos/:id', (req, res) => {
   const db = readDb()
   db.documentosProcesso = db.documentosProcesso.filter((d) => d.processoId !== req.params.id)
   db.processos = db.processos.filter((p) => p.id !== req.params.id)
-  writeDb(db)
+  writeDbAtomico(db)
   return res.status(204).send()
 })
 
@@ -437,7 +478,7 @@ app.post('/api/documentos-processo', (req, res) => {
     return res.status(400).json({ message: 'Processo vinculado ao documento não encontrado' })
   }
   db.documentosProcesso.push(documento)
-  writeDb(db)
+  writeDbAtomico(db)
   return res.status(201).json(documento)
 })
 
@@ -449,14 +490,14 @@ app.put('/api/documentos-processo/:id', (req, res) => {
   const parsedAtualizacao = validarPayload(documentoUpdateSchema, atualizacao, res, 'Dados inválidos para documento')
   if (!parsedAtualizacao) return
   db.documentosProcesso[idx] = { ...db.documentosProcesso[idx], ...parsedAtualizacao }
-  writeDb(db)
+  writeDbAtomico(db)
   return res.json(db.documentosProcesso[idx])
 })
 
 app.delete('/api/documentos-processo/:id', (req, res) => {
   const db = readDb()
   db.documentosProcesso = db.documentosProcesso.filter((d) => d.id !== req.params.id)
-  writeDb(db)
+  writeDbAtomico(db)
   return res.status(204).send()
 })
 
@@ -484,14 +525,14 @@ app.put('/api/configuracoes/:chave', (req, res) => {
   } else {
     db.configuracoes.push({ ...payload, id, chave, valor })
   }
-  writeDb(db)
+  writeDbAtomico(db)
   return res.json(db.configuracoes.find((c) => c.chave === chave))
 })
 
 app.delete('/api/configuracoes/:chave', (req, res) => {
   const db = readDb()
   db.configuracoes = db.configuracoes.filter((c) => c.chave !== req.params.chave)
-  writeDb(db)
+  writeDbAtomico(db)
   return res.status(204).send()
 })
 

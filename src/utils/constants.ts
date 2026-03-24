@@ -103,8 +103,4 @@ export const calcularDiasRestantes = (dataPrazo: Date | string | undefined): num
   return Math.ceil((prazo.getTime() - hoje.getTime()) / (1000 * 60 * 60 * 24))
 }
 
-export const calcularDiasDecorridos = (dataAbertura: Date | string): number => {
-  const abertura = new Date(dataAbertura)
-  const hoje = new Date()
-  return Math.floor((hoje.getTime() - abertura.getTime()) / (1000 * 60 * 60 * 24))
-}
+

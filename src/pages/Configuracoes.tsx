@@ -184,10 +184,11 @@ export const Configuracoes: React.FC = () => {
     }
     setCarregando(true)
     try {
-      const pessoasApi = await api.get<Pessoa[]>('/pessoas')
-      const processosApi = await api.get<Processo[]>('/processos')
+      const backupOpts = { timeoutMs: 60_000, retries: 1 }
+      const pessoasApi = await api.get<Pessoa[]>('/pessoas', backupOpts)
+      const processosApi = await api.get<Processo[]>('/processos', backupOpts)
       const todosDocumentos = await carregarDocumentosApi(processosApi)
-      const todasConfiguracoes = await api.get<Configuracao[]>('/configuracoes')
+      const todasConfiguracoes = await api.get<Configuracao[]>('/configuracoes', backupOpts)
 
       // Re-criptografa senhaGov com a senha do backup (portátil)
       const pessoasParaBackup = await Promise.all(
@@ -308,7 +309,7 @@ export const Configuracoes: React.FC = () => {
         processos: dados.processos,
         documentosProcesso: dados.documentosProcesso ?? [],
         configuracoes: dados.configuracoes ?? [],
-      })
+      }, { timeoutMs: 60_000, retries: 1 })
 
       // Mantém também o banco local em sincronia para rotinas de diagnóstico/backup.
       await db.pessoas.clear()
@@ -353,11 +354,23 @@ export const Configuracoes: React.FC = () => {
   const apagarTodosDados = async () => {
     setCarregando(true)
     try {
+      // Limpa o servidor via import de backup vazio (atômico)
+      await api.post('/backup/import', {
+        versao: '2.0',
+        timestamp: new Date().toISOString(),
+        pessoas: [],
+        processos: [],
+        documentosProcesso: [],
+        configuracoes: [],
+      }, { timeoutMs: 30_000, retries: 1 })
+
+      // Limpa banco local (cache de diagnóstico)
       await db.pessoas.clear()
       await db.processos.clear()
       await db.documentosProcesso.clear()
       await db.configuracoes.clear()
       await db.backupsHistorico.clear()
+
       await carregarPessoas()
       await carregarProcessos()
       await carregarDadosIniciais()
@@ -676,12 +689,13 @@ export const Configuracoes: React.FC = () => {
           </h2>
           <ul className="space-y-2">
             {historico.map((h) => (
-              <li key={h.id} className="flex items-center gap-3 text-sm text-gray-600 bg-gray-50 rounded-lg px-3 py-2">
-                <CheckCircle className="w-4 h-4 text-green-500 shrink-0" />
-                <span className="flex-1">
-                  {new Date(h.timestamp).toLocaleDateString('pt-BR')} {new Date(h.timestamp).toLocaleTimeString('pt-BR')} — {h.origem}
+              <li key={h.id} className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3 text-sm text-gray-600 bg-gray-50 rounded-lg px-4 py-3">
+                <CheckCircle className="w-4 h-4 text-green-500 shrink-0 hidden sm:block" />
+                <span className="font-medium text-gray-800">
+                  {new Date(h.timestamp).toLocaleDateString('pt-BR')} {new Date(h.timestamp).toLocaleTimeString('pt-BR')}
                 </span>
-                <span className="text-xs text-gray-400">{h.pessoas} pess. / {h.processos} proc.</span>
+                <span className="text-xs px-2 py-0.5 rounded-full bg-gray-200 text-gray-600 w-fit">{h.origem}</span>
+                <span className="text-xs text-gray-400 sm:ml-auto">{h.pessoas} pessoas · {h.processos} processos</span>
               </li>
             ))}
           </ul>
@@ -689,11 +703,11 @@ export const Configuracoes: React.FC = () => {
       )}
 
       {/* Zona de perigo */}
-      {!carregandoInicial && <div className="bg-white rounded-2xl shadow-sm ring-1 ring-red-200 p-5">
-        <h2 className="font-semibold text-red-700 mb-1 flex items-center gap-2">
+      {!carregandoInicial && <div className="bg-red-50 rounded-2xl shadow-sm ring-1 ring-red-200 p-5">
+        <h2 className="font-semibold text-red-800 mb-1 flex items-center gap-2">
           <AlertTriangle className="w-5 h-5" /> Zona de Perigo
         </h2>
-        <p className="text-sm text-gray-600 mb-4">
+        <p className="text-sm text-red-700/80 mb-4">
           Apaga TODOS os dados do sistema (pessoas, processos, documentos e configurações). Esta ação é IRREVERSÍVEL.
         </p>
         <Button variant="danger" onClick={() => setConfirmaExclusao(true)} disabled={carregando}>
