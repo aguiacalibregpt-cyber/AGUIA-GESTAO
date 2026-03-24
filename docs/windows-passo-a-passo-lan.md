@@ -8,11 +8,14 @@ Este guia configura 3 computadores:
 
 1. Instale Node.js LTS (com npm):
    - https://nodejs.org
-2. Abra o PowerShell como usuario comum e instale pnpm:
+2. (Opcional) Abra o PowerShell como usuario comum e instale pnpm:
 
 ```powershell
 npm install -g pnpm
 ```
+
+Observacao:
+- Se o `pnpm` falhar no seu Windows com erros `ERR_PNPM_ENOENT`, o AGUIA agora faz fallback para `npm` automaticamente no modo seguro.
 
 3. Teste as versoes:
 
@@ -31,16 +34,34 @@ pnpm -v
 pnpm install
 ```
 
+Alternativa sem pnpm:
+
+```powershell
+npm install --no-audit --no-fund
+```
+
 3. Gere build da aplicacao:
 
 ```powershell
 pnpm build
 ```
 
+Alternativa sem pnpm:
+
+```powershell
+npm run build
+```
+
 4. Inicie o servidor (teste manual):
 
 ```powershell
 pnpm server
+```
+
+Alternativa sem pnpm:
+
+```powershell
+node .\server\index.mjs
 ```
 
 5. Deixe a janela aberta e teste no proprio host:
@@ -143,6 +164,9 @@ No host, use:
 
 Para parar rapidamente:
 - `PARAR-AGUIA-SERVIDOR.bat`
+
+Recomendacao de estabilidade no Windows:
+- Evite pasta com espacos no caminho do projeto. Prefira algo como `D:\AGUIA\AGUIA-GESTAO-main`.
 
 ## 9. Criar pacote portatil simples (host)
 
@@ -323,6 +347,7 @@ Isso geralmente indica que o `pnpm` nao esta disponivel no host (ou na tarefa de
 
 As versoes atuais dos scripts `INICIAR-AGUIA-SERVIDOR.bat` e `INICIAR-AGUIA-SERVIDOR-SEGURO.bat`
 ja tentam fallback automatico para `node .\server\index.mjs` quando `pnpm` nao for encontrado.
+No modo seguro, se `pnpm install` falhar no Windows, o script alterna automaticamente para `npm install`.
 
 Checklist rapido no host:
 
@@ -344,6 +369,16 @@ pnpm build
 ```
 
 Depois rode novamente o `.bat`.
+
+### Nao tenho Git instalado no host
+
+Sem Git, ainda e possivel operar normalmente:
+
+1. Baixe a versao mais recente do projeto em `.zip` no GitHub.
+2. Extraia em pasta sem espacos (ex.: `D:\AGUIA\AGUIA-GESTAO-main`).
+3. Rode `INICIAR-AGUIA-SERVIDOR-SEGURO.bat`.
+
+Se precisar atualizar no futuro, repita o download do `.zip` e substitua a pasta mantendo `server\data\db.json`.
 
 ### Atualizacoes em tempo real entre 2 PCs na tela de Processos
 

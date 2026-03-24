@@ -42,10 +42,13 @@ $readme = Join-Path $OutDir "LEIA-ME-PRIMEIRO.txt"
 @"
 PACOTE PORTATIL AGUIA (HOST LOCAL)
 
-1) Instale Node.js LTS e pnpm no computador host.
-2) Abra INICIAR-AGUIA-SERVIDOR.bat.
+1) Instale Node.js LTS no computador host.
+2) Abra INICIAR-AGUIA-SERVIDOR-SEGURO.bat.
 3) No primeiro uso, aguarde instalar dependencias.
 4) Acesse no navegador: http://IP-DO-HOST:3000
+
+Observacao:
+- O launcher seguro tenta pnpm e, se houver falha de ambiente no Windows, alterna para npm automaticamente.
 
 Backup manual:
 powershell -ExecutionPolicy Bypass -File .\scripts\windows\backup-db.ps1

@@ -9,7 +9,7 @@ if ([string]::IsNullOrWhiteSpace($ProjectRoot)) {
   $ProjectRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path
 }
 
-$starter = Join-Path $ProjectRoot "INICIAR-AGUIA-SERVIDOR.bat"
+$starter = Join-Path $ProjectRoot "INICIAR-AGUIA-SERVIDOR-SEGURO.bat"
 if (!(Test-Path $starter)) {
   throw "Arquivo nao encontrado: $starter"
 }
