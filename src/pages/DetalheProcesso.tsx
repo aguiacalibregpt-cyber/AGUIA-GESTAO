@@ -193,6 +193,26 @@ export const DetalheProcesso: React.FC<DetalheProcessoProps> = ({ processoId, on
     void carregarDocumentosPorProcesso(processoId)
   }, [processoId])
 
+  useEffect(() => {
+    const sincronizar = () => {
+      if (document.hidden) return
+      void carregarProcessos()
+      void carregarDocumentosPorProcesso(processoId)
+    }
+    const timer = window.setInterval(sincronizar, 5000)
+    return () => window.clearInterval(timer)
+  }, [processoId, carregarProcessos, carregarDocumentosPorProcesso])
+
+  useEffect(() => {
+    const aoVoltarParaAba = () => {
+      if (document.hidden) return
+      void carregarProcessos()
+      void carregarDocumentosPorProcesso(processoId)
+    }
+    document.addEventListener('visibilitychange', aoVoltarParaAba)
+    return () => document.removeEventListener('visibilitychange', aoVoltarParaAba)
+  }, [processoId, carregarProcessos, carregarDocumentosPorProcesso])
+
   // Sincroniza documentos do checklist com o banco (deduplica, adiciona faltantes)
   const sincronizarChecklist = useCallback(async (opts?: { silencioso?: boolean }) => {
     if (!processo || sincronizacaoEmAndamentoRef.current) return

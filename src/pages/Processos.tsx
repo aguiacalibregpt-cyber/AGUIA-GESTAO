@@ -133,6 +133,32 @@ export const Processos: React.FC<ProcessosProps> = ({ pessoaIdInicial }) => {
   useEffect(() => { void carregarProcessos() }, [])
   useEffect(() => { void carregarPessoas() }, [])
   useEffect(() => {
+    let ativo = true
+    const sincronizar = () => {
+      if (!ativo) return
+      if (document.hidden) return
+      void carregarProcessos()
+      void carregarPessoas()
+    }
+    const timer = window.setInterval(sincronizar, 5000)
+    return () => {
+      ativo = false
+      window.clearInterval(timer)
+    }
+  }, [carregarProcessos, carregarPessoas])
+
+  useEffect(() => {
+    const aoVoltarParaAba = () => {
+      if (!document.hidden) {
+        void carregarProcessos()
+        void carregarPessoas()
+      }
+    }
+    document.addEventListener('visibilitychange', aoVoltarParaAba)
+    return () => document.removeEventListener('visibilitychange', aoVoltarParaAba)
+  }, [carregarProcessos, carregarPessoas])
+
+  useEffect(() => {
     if (pessoaIdInicial) {
       setFormData((f) => ({ ...f, pessoaId: pessoaIdInicial }))
       setMostraModal(true)

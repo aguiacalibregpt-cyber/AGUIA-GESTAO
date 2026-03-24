@@ -317,6 +317,39 @@ netstat -ano | findstr :3000
 
 Se nao aparecer `LISTENING`, o servidor nao iniciou corretamente.
 
+### Servidor so inicia quando roda `node .\server\index.mjs`
+
+Isso geralmente indica que o `pnpm` nao esta disponivel no host (ou na tarefa de logon), mas o Node esta instalado.
+
+As versoes atuais dos scripts `INICIAR-AGUIA-SERVIDOR.bat` e `INICIAR-AGUIA-SERVIDOR-SEGURO.bat`
+ja tentam fallback automatico para `node .\server\index.mjs` quando `pnpm` nao for encontrado.
+
+Checklist rapido no host:
+
+```powershell
+node -v
+pnpm -v
+```
+
+Se `pnpm -v` falhar e voce quer usar apenas Node no host de producao:
+1. Garanta que a pasta `dist` ja exista (build feito antes).
+2. Use `INICIAR-AGUIA-SERVIDOR.bat` normalmente (ele usa fallback para Node).
+
+Se quiser manter fluxo completo com `pnpm`:
+
+```powershell
+npm install -g pnpm
+pnpm install
+pnpm build
+```
+
+Depois rode novamente o `.bat`.
+
+### Atualizacoes em tempo real entre 2 PCs na tela de Processos
+
+O sistema agora faz sincronizacao automatica periodica (polling) e ao voltar para a aba.
+Nao precisa mais reiniciar a pagina para refletir alteracoes de outro PC, apenas aguarde alguns segundos.
+
 ### Servidor nao inicia no logon
 
 1. Abra "Agendador de Tarefas".

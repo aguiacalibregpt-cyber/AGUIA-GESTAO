@@ -9,13 +9,7 @@ echo ============================================
 echo.
 
 if "%AGUIA_API_TOKEN%"=="" (
-  set /p AGUIA_API_TOKEN=Informe o AGUIA_API_TOKEN: 
-)
-
-if "%AGUIA_API_TOKEN%"=="" (
-  echo [ERRO] Token nao informado.
-  pause
-  exit /b 1
+  echo [AVISO] Token nao informado. O servidor sera iniciado sem auth de API.
 )
 
 if "%AGUIA_ALLOWED_ORIGINS%"=="" (
