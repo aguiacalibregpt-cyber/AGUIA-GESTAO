@@ -1,10 +1,11 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import { LayoutDashboard, Users, FileText, Settings, Menu, X, Shield, Lock, Unlock } from 'lucide-react'
 import { Dashboard, Pessoas, Processos, Configuracoes } from './pages'
 import { useConfiguracoesStore } from './stores/configuracoesStore'
 import { Button, Input } from './components'
 import { hashPin, compararHash, validarFormatoPin } from './lib/pin'
+import { obterMensagemErro } from './utils/robustness'
 
 type Pagina = 'dashboard' | 'pessoas' | 'processos' | 'configuracoes'
 
@@ -25,14 +26,26 @@ function AppInner() {
   const { obterConfiguracao } = useConfiguracoesStore()
   const { salvarConfiguracao } = useConfiguracoesStore()
   const [nomeEmpresa, setNomeEmpresa] = useState('ÁGUIA GESTÃO')
-  const [estadoAcesso, setEstadoAcesso] = useState<'carregando' | 'setup' | 'bloqueado' | 'desbloqueado'>('carregando')
+  const [estadoAcesso, setEstadoAcesso] = useState<'carregando' | 'token' | 'setup' | 'bloqueado' | 'desbloqueado'>('carregando')
   const [pinHashSalvo, setPinHashSalvo] = useState<string | null>(null)
   const [pinInput, setPinInput] = useState('')
   const [novoPin, setNovoPin] = useState('')
   const [confirmarPin, setConfirmarPin] = useState('')
   const [erroPin, setErroPin] = useState('')
+  const [mensagemAcesso, setMensagemAcesso] = useState<{ tipo: 'success' | 'error'; texto: string } | null>(null)
   const [tentativas, setTentativas] = useState(0)
   const [tempoInatividadeMinutos, setTempoInatividadeMinutos] = useState(5)
+  const [tokenApiAcesso, setTokenApiAcesso] = useState('')
+
+  const ehErroAutenticacao = (mensagem: string): boolean => {
+    const txt = mensagem.toLowerCase()
+    return txt.includes('token de acesso ausente')
+      || txt.includes('token de acesso inválido')
+      || txt.includes('modo bloqueado')
+      || txt.includes('erro http 401')
+      || txt.includes('erro http 403')
+      || txt.includes('erro http 503')
+  }
 
   useEffect(() => {
     const fn = () => setCompacto(window.scrollY > 60)
@@ -41,25 +54,76 @@ function AppInner() {
   }, [])
 
   useEffect(() => {
-    Promise.all([
+    try {
+      setTokenApiAcesso(localStorage.getItem('aguia.api.token') || '')
+    } catch {
+      setTokenApiAcesso('')
+    }
+  }, [])
+
+  const carregarEstadoSeguranca = useCallback(async () => {
+    try {
+      const [nome, pinHash, idle] = await Promise.all([
       obterConfiguracao('nomeEmpresa'),
       obterConfiguracao('seguranca_pin_hash'),
       obterConfiguracao('seguranca_idle_minutos'),
-    ])
-      .then(([nome, pinHash, idle]) => {
-        if (typeof nome === 'string' && nome.trim()) setNomeEmpresa(nome)
-        if (typeof idle === 'number' && Number.isFinite(idle) && idle > 0) {
-          setTempoInatividadeMinutos(Math.min(120, Math.max(1, Math.floor(idle))))
-        }
-        if (typeof pinHash === 'string' && pinHash.trim()) {
-          setPinHashSalvo(pinHash)
-          setEstadoAcesso('bloqueado')
-          return
-        }
+      ])
+
+      if (typeof nome === 'string' && nome.trim()) setNomeEmpresa(nome)
+      if (typeof idle === 'number' && Number.isFinite(idle) && idle > 0) {
+        setTempoInatividadeMinutos(Math.min(120, Math.max(1, Math.floor(idle))))
+      }
+      if (typeof pinHash === 'string' && pinHash.trim()) {
+        setPinHashSalvo(pinHash)
+        setEstadoAcesso('bloqueado')
+        return
+      }
+      setPinHashSalvo(null)
+      setEstadoAcesso('setup')
+    } catch (error) {
+      const mensagem = obterMensagemErro(error, 'Falha ao carregar segurança')
+      if (ehErroAutenticacao(mensagem)) {
+        setEstadoAcesso('token')
+        setErroPin('Token da API ausente ou inválido. Informe o token para continuar.')
+      } else {
         setEstadoAcesso('setup')
-      })
-      .catch(() => setEstadoAcesso('setup'))
+      }
+    }
   }, [obterConfiguracao])
+
+  useEffect(() => {
+    void carregarEstadoSeguranca()
+  }, [carregarEstadoSeguranca])
+
+  const salvarTokenApiLocal = (): boolean => {
+    try {
+      const token = tokenApiAcesso.trim()
+      if (token) {
+        localStorage.setItem('aguia.api.token', token)
+      } else {
+        localStorage.removeItem('aguia.api.token')
+      }
+      return true
+    } catch {
+      return false
+    }
+  }
+
+  const validarTokenEContinuar = async () => {
+    setMensagemAcesso(null)
+    setErroPin('')
+    if (!tokenApiAcesso.trim()) {
+      setErroPin('Informe o Token da API para continuar')
+      return
+    }
+    if (!salvarTokenApiLocal()) {
+      setErroPin('Não foi possível salvar o token localmente neste navegador')
+      return
+    }
+
+    setEstadoAcesso('carregando')
+    await carregarEstadoSeguranca()
+  }
 
   useEffect(() => {
     if (estadoAcesso !== 'desbloqueado') return
@@ -83,6 +147,15 @@ function AppInner() {
 
   const criarPrimeiroPin = async () => {
     setErroPin('')
+    setMensagemAcesso(null)
+    if (!tokenApiAcesso.trim()) {
+      setErroPin('Informe o Token da API antes de salvar o primeiro PIN')
+      return
+    }
+    if (!salvarTokenApiLocal()) {
+      setErroPin('Não foi possível salvar o token localmente neste navegador')
+      return
+    }
     if (!validarFormatoPin(novoPin)) {
       setErroPin('Use um PIN numérico de 4 a 8 dígitos')
       return
@@ -105,6 +178,7 @@ function AppInner() {
 
   const desbloquear = async () => {
     setErroPin('')
+    setMensagemAcesso(null)
     if (!pinHashSalvo) {
       setEstadoAcesso('setup')
       return
@@ -173,8 +247,40 @@ function AppInner() {
 
             {estadoAcesso === 'carregando' && <p className="text-sm text-gray-600">Carregando segurança...</p>}
 
+            {estadoAcesso === 'token' && (
+              <div className="space-y-3">
+                <p className="text-sm text-gray-600">
+                  O servidor exige autenticação. Informe o Token da API para validar o acesso antes de configurar/desbloquear PIN.
+                </p>
+                <Input
+                  label="Token da API"
+                  type="password"
+                  value={tokenApiAcesso}
+                  onChange={(e) => {
+                    setTokenApiAcesso(e.target.value)
+                    if (mensagemAcesso) setMensagemAcesso(null)
+                  }}
+                  placeholder="Mesmo token usado no servidor"
+                />
+                {erroPin && <p className="text-xs text-red-600">{erroPin}</p>}
+                <Button className="w-full justify-center" onClick={() => void validarTokenEContinuar()}>
+                  Validar token e continuar
+                </Button>
+              </div>
+            )}
+
             {estadoAcesso === 'setup' && (
               <div className="space-y-3">
+                <Input
+                  label="Token da API"
+                  type="password"
+                  value={tokenApiAcesso}
+                  onChange={(e) => {
+                    setTokenApiAcesso(e.target.value)
+                    if (mensagemAcesso) setMensagemAcesso(null)
+                  }}
+                  placeholder="Mesmo token usado no servidor"
+                />
                 <Input
                   label="PIN de acesso"
                   type="password"
@@ -194,6 +300,11 @@ function AppInner() {
                   placeholder="Repita o PIN"
                 />
                 {erroPin && <p className="text-xs text-red-600">{erroPin}</p>}
+                {mensagemAcesso && (
+                  <p className={`text-xs ${mensagemAcesso.tipo === 'success' ? 'text-green-700' : 'text-red-600'}`}>
+                    {mensagemAcesso.texto}
+                  </p>
+                )}
                 <Button className="w-full justify-center" onClick={() => void criarPrimeiroPin()}>
                   <Unlock className="w-4 h-4" />
                   Salvar e entrar
@@ -203,6 +314,31 @@ function AppInner() {
 
             {estadoAcesso === 'bloqueado' && (
               <div className="space-y-3">
+                <Input
+                  label="Token da API (se precisar atualizar)"
+                  type="password"
+                  value={tokenApiAcesso}
+                  onChange={(e) => {
+                    setTokenApiAcesso(e.target.value)
+                    if (mensagemAcesso) setMensagemAcesso(null)
+                  }}
+                  placeholder="Mesmo token usado no servidor"
+                />
+                <Button
+                  variant="secondary"
+                  className="w-full justify-center"
+                  onClick={() => {
+                    if (salvarTokenApiLocal()) {
+                      setErroPin('')
+                      setMensagemAcesso({ tipo: 'success', texto: 'Token salvo com sucesso neste navegador.' })
+                    } else {
+                      setErroPin('Não foi possível salvar o token localmente neste navegador')
+                      setMensagemAcesso({ tipo: 'error', texto: 'Falha ao salvar token. Tente novamente.' })
+                    }
+                  }}
+                >
+                  Salvar token neste navegador
+                </Button>
                 <Input
                   label="PIN"
                   type="password"
@@ -216,6 +352,11 @@ function AppInner() {
                   }}
                 />
                 {erroPin && <p className="text-xs text-red-600">{erroPin}</p>}
+                {mensagemAcesso && (
+                  <p className={`text-xs ${mensagemAcesso.tipo === 'success' ? 'text-green-700' : 'text-red-600'}`}>
+                    {mensagemAcesso.texto}
+                  </p>
+                )}
                 <Button
                   className="w-full justify-center"
                   onClick={() => void desbloquear()}

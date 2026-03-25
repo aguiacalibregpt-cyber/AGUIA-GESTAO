@@ -165,6 +165,11 @@ try {
 
   $tokenFinal = $ApiToken.Trim()
   if ([string]::IsNullOrWhiteSpace($tokenFinal)) {
+    Write-Log "[INFO] AGUIA_API_TOKEN nao informado. Solicitando token para esta execucao..."
+    $tokenFinal = (Read-Host "Informe AGUIA_API_TOKEN").Trim()
+  }
+
+  if ([string]::IsNullOrWhiteSpace($tokenFinal)) {
     throw "AGUIA_API_TOKEN nao informado. Modo bloqueado exige token explicito para iniciar."
   }
 

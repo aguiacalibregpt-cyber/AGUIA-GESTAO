@@ -35,6 +35,7 @@ import App from './App'
 describe('App UI', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    localStorage.clear()
     mockObterConfiguracao.mockImplementation(async (chave: string) => {
       if (chave === 'nomeEmpresa') return 'Empresa Teste'
       if (chave === 'seguranca_pin_hash') return '1234'
@@ -74,5 +75,31 @@ describe('App UI', () => {
     await user.click(botoesBloquear[botoesBloquear.length - 1])
 
     expect(await screen.findByText('Sessão bloqueada')).toBeTruthy()
+  })
+
+  test('exige token quando servidor retorna erro de autenticacao e libera fluxo apos validar', async () => {
+    const user = userEvent.setup()
+    let primeiraTentativa = true
+    mockObterConfiguracao.mockImplementation(async (chave: string) => {
+      if (primeiraTentativa) {
+        primeiraTentativa = false
+        throw new Error('Token de acesso ausente')
+      }
+      if (chave === 'nomeEmpresa') return 'Empresa Teste'
+      if (chave === 'seguranca_pin_hash') return null
+      if (chave === 'seguranca_idle_minutos') return 5
+      return null
+    })
+
+    render(<App />)
+
+    expect(await screen.findByText('Validar token e continuar')).toBeTruthy()
+    expect(screen.getByText('Token da API ausente ou inválido. Informe o token para continuar.')).toBeTruthy()
+
+    await user.type(screen.getByLabelText('Token da API'), 'token-host')
+    await user.click(screen.getByRole('button', { name: 'Validar token e continuar' }))
+
+    expect(await screen.findByText('Configurar PIN')).toBeTruthy()
+    expect(localStorage.getItem('aguia.api.token')).toBe('token-host')
   })
 })

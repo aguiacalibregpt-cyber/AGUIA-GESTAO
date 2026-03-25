@@ -99,7 +99,7 @@ $env:AGUIA_ALLOWED_ORIGINS = "http://192.168.1.25:3000,http://127.0.0.1:3000"
 Depois inicie normalmente com `pnpm server`.
 
 Opcao pratica: use `INICIAR-AGUIA-SERVIDOR-SEGURO.bat`.
-Ele exige `AGUIA_API_TOKEN` definido no ambiente e configura `AGUIA_ALLOWED_ORIGINS`.
+Se `AGUIA_API_TOKEN` nao estiver no ambiente, o launcher solicita o token e continua a inicializacao automaticamente.
 
 Nos clientes web, abra Configuracoes -> Seguranca de Acesso e preencha o campo "Token da API (opcional)" com o mesmo valor do `AGUIA_API_TOKEN`.
 

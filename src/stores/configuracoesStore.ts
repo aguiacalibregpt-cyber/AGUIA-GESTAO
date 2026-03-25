@@ -24,6 +24,11 @@ const parseConfig = (c: ConfigPersistida): Configuracao => ({
   dataAtualizacao: new Date(c.dataAtualizacao),
 })
 
+const ehConfiguracaoInexistente = (mensagem: string): boolean => {
+  const txt = mensagem.toLowerCase()
+  return txt.includes('configuração não encontrada') || txt.includes('erro http 404')
+}
+
 export const useConfiguracoesStore = create<ConfiguracoesStore>((set, get) => ({
   configuracoes: [],
   carregando: false,
@@ -51,8 +56,10 @@ export const useConfiguracoesStore = create<ConfiguracoesStore>((set, get) => ({
         const config = parseConfig(await api.get<ConfigPersistida>(`/configuracoes/${encodeURIComponent(chave)}`))
         set({ configuracoes: [...get().configuracoes.filter((c) => c.chave !== chave), config] })
         return config.valor
-      } catch {
-        return null
+      } catch (error) {
+        const mensagem = obterMensagemErro(error, 'Erro ao obter configuração')
+        if (ehConfiguracaoInexistente(mensagem)) return null
+        throw error
       }
     } catch (error) {
       set({ erro: obterMensagemErro(error, 'Erro ao obter configuração') })
