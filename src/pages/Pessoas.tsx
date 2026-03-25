@@ -13,6 +13,15 @@ interface PessoasProps {
 
 const FORM_INICIAL = { nome: '', cpf: '', senhaGov: '', telefone: '', email: '', endereco: '', ativo: true }
 
+const normalizarTextoBusca = (valor?: string): string => {
+  if (!valor) return ''
+  return valor
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim()
+}
+
 export const Pessoas: React.FC<PessoasProps> = ({ onNovoProcesso }) => {
   const { pessoas, carregarPessoas, adicionarPessoa, atualizarPessoa, deletarPessoa, erro, carregando, avisos } = usePessoasStore()
   const [mostraModal, setMostraModal] = useState(false)
@@ -33,11 +42,21 @@ export const Pessoas: React.FC<PessoasProps> = ({ onNovoProcesso }) => {
     return () => window.removeEventListener('scroll', fn)
   }, [])
 
-  const pessoasFiltradas = pessoas.filter(
-    (p) =>
-      p.nome.toLowerCase().includes(busca.toLowerCase()) ||
-      p.cpf.includes(busca.replace(/\D/g, '')),
-  )
+  const textoBusca = normalizarTextoBusca(busca)
+  const buscaCpf = busca.replace(/\D/g, '')
+  const temBuscaTexto = textoBusca.length > 0
+  const temBuscaCpf = buscaCpf.length > 0
+
+  const pessoasFiltradas = pessoas.filter((p) => {
+    if (!temBuscaTexto && !temBuscaCpf) return true
+
+    const nomeNormalizado = normalizarTextoBusca(p.nome)
+    const cpfNormalizado = p.cpf.replace(/\D/g, '')
+    const correspondeNome = temBuscaTexto && nomeNormalizado.includes(textoBusca)
+    const correspondeCpf = temBuscaCpf && cpfNormalizado.includes(buscaCpf)
+
+    return correspondeNome || correspondeCpf
+  })
   const carregandoInicial = carregando && pessoas.length === 0
   const atualizandoEmSegundoPlano = carregando && !carregandoInicial
 
