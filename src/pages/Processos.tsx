@@ -451,6 +451,13 @@ export const Processos: React.FC<ProcessosProps> = ({ pessoaIdInicial }) => {
     )
   }
 
+  const processoCredenciais = credenciais
+    ? processos.find((processo) => processo.id === credenciais.processoid)
+    : undefined
+  const pessoaCredenciais = processoCredenciais
+    ? obterPessoaDoProcesso(processoCredenciais.pessoaId)
+    : undefined
+
   return (
     <div className="space-y-6" ref={topoRef}>
       {/* Cabeçalho */}
@@ -787,6 +794,20 @@ export const Processos: React.FC<ProcessosProps> = ({ pessoaIdInicial }) => {
               <button onClick={() => setCredenciais(null)} className="text-white/60 hover:text-white transition-colors"><X className="w-5 h-5" /></button>
             </div>
             <div className="p-6 space-y-4">
+              <div className="bg-gray-50 border border-gray-200 rounded-xl p-3 space-y-2">
+                <div>
+                  <p className="text-xs text-gray-500 font-medium">Nome</p>
+                  <p className="text-sm font-semibold text-gray-900">{pessoaCredenciais?.nome || 'Pessoa não encontrada'}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500 font-medium">Tipo de processo</p>
+                  <p className="text-sm text-gray-800">{processoCredenciais ? nomesTipoProcesso[processoCredenciais.tipo] : 'Não identificado'}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500 font-medium">Data de início</p>
+                  <p className="text-sm text-gray-800">{processoCredenciais ? formatarData(processoCredenciais.dataAbertura) : 'Não informada'}</p>
+                </div>
+              </div>
               <div>
                 <p className="text-xs text-gray-500 mb-1 font-medium">CPF</p>
                 <div className="flex items-center gap-2">
