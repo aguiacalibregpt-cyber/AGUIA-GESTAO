@@ -96,6 +96,8 @@ const normalizarTextoBusca = (valor?: string): string => {
     .trim()
 }
 
+const normalizarIdRelacionamento = (valor?: string): string => (valor || '').trim()
+
 export const Processos: React.FC<ProcessosProps> = ({ pessoaIdInicial }) => {
   const { processos, carregarProcessos, adicionarProcesso, atualizarProcesso, deletarProcesso, erro, carregando: carregandoProcessos } =
     useProcessosStore()
@@ -190,23 +192,36 @@ export const Processos: React.FC<ProcessosProps> = ({ pessoaIdInicial }) => {
     }
   }, [pessoaIdInicial])
 
+  const pessoasPorId = useMemo(() => {
+    const mapa = new Map<string, (typeof pessoas)[number]>()
+    pessoas.forEach((pessoa) => {
+      mapa.set(normalizarIdRelacionamento(pessoa.id), pessoa)
+    })
+    return mapa
+  }, [pessoas])
+
+  const obterPessoaDoProcesso = (pessoaId: string) => pessoasPorId.get(normalizarIdRelacionamento(pessoaId))
+
   const processadosFiltrados = useMemo(() => {
+    const textoBusca = normalizarTextoBusca(busca)
+    const buscaNormalizada = busca.replace(/\D/g, '')
+    const temBuscaTexto = textoBusca.length > 0
+    const temBuscaCpf = buscaNormalizada.length > 0
+
     return processos.filter((p) => {
       if (filtroStatus !== 'todos' && p.status !== filtroStatus) return false
       if (filtroTipo !== 'todos' && p.tipo !== filtroTipo) return false
-      if (busca) {
-        const pessoa = pessoas.find((pe) => pe.id === p.pessoaId)
-        const textoBusca = normalizarTextoBusca(busca)
+      if (temBuscaTexto || temBuscaCpf) {
+        const pessoa = obterPessoaDoProcesso(p.pessoaId)
         const numeroNormalizado = normalizarTextoBusca(p.numero)
         const tipoNormalizado = normalizarTextoBusca(nomesTipoProcesso[p.tipo])
         const nomePessoaNormalizado = normalizarTextoBusca(pessoa?.nome)
         const cpfNormalizado = pessoa?.cpf?.replace(/\D/g, '') || ''
-        const buscaNormalizada = busca.replace(/\D/g, '')
-        const buscaCPFValida = buscaNormalizada.length > 0 && cpfNormalizado.includes(buscaNormalizada)
+        const buscaCPFValida = temBuscaCpf && cpfNormalizado.includes(buscaNormalizada)
         if (
-          !numeroNormalizado.includes(textoBusca) &&
-          !tipoNormalizado.includes(textoBusca) &&
-          !nomePessoaNormalizado.includes(textoBusca) &&
+          !(temBuscaTexto && numeroNormalizado.includes(textoBusca)) &&
+          !(temBuscaTexto && tipoNormalizado.includes(textoBusca)) &&
+          !(temBuscaTexto && nomePessoaNormalizado.includes(textoBusca)) &&
           !buscaCPFValida
         ) return false
       }
@@ -223,7 +238,7 @@ export const Processos: React.FC<ProcessosProps> = ({ pessoaIdInicial }) => {
       const dataB = new Date(b.dataAbertura || b.dataCadastro).getTime()
       return dataA - dataB
     })
-  }, [processos, pessoas, busca, filtroStatus, filtroTipo, filtroVenc])
+  }, [processos, busca, filtroStatus, filtroTipo, filtroVenc, pessoasPorId])
 
   const abrirModalNovo = () => {
     setFormData({ ...FORM_INICIAL, pessoaId: pessoaIdInicial || '' })
@@ -287,7 +302,7 @@ export const Processos: React.FC<ProcessosProps> = ({ pessoaIdInicial }) => {
   }
 
   const abrirCredenciais = async (processo: Processo) => {
-    const pessoa = pessoas.find((p) => p.id === processo.pessoaId)
+    const pessoa = obterPessoaDoProcesso(processo.pessoaId)
     if (!pessoa) return
       // senhaGov já vem descriptografada pelo store durante carregarPessoas
       if (pessoa.senhaGov) {
@@ -312,7 +327,7 @@ export const Processos: React.FC<ProcessosProps> = ({ pessoaIdInicial }) => {
     try {
       await navigator.clipboard.writeText(valor)
       if (tipo === 'senha' && credenciais) {
-        const pessoa = pessoas.find((p) => p.id === processos.find((pr) => pr.id === credenciais.processoid)?.pessoaId)
+        const pessoa = obterPessoaDoProcesso(processos.find((pr) => pr.id === credenciais.processoid)?.pessoaId || '')
         if (pessoa) registrarAcessoSenhaGov('copia', { pessoaId: pessoa.id, processoId: credenciais.processoid })
       }
       setMensagem({ tipo: 'success', texto: 'Copiado para a área de transferência.' })
@@ -555,7 +570,7 @@ export const Processos: React.FC<ProcessosProps> = ({ pessoaIdInicial }) => {
         <div className="space-y-3">
           <div className="md:hidden space-y-3">
             {processadosFiltrados.map((processo) => {
-              const pessoa = pessoas.find((p) => p.id === processo.pessoaId)
+              const pessoa = obterPessoaDoProcesso(processo.pessoaId)
               const diasRestantes = processo.dataPrazo ? calcularDiasRestantes(processo.dataPrazo) : null
               const vencido = diasRestantes !== null && diasRestantes < 0
               const venceHoje = diasRestantes === 0
@@ -634,7 +649,7 @@ export const Processos: React.FC<ProcessosProps> = ({ pessoaIdInicial }) => {
                 </thead>
                 <tbody>
                   {processadosFiltrados.map((processo) => {
-                    const pessoa = pessoas.find((p) => p.id === processo.pessoaId)
+                    const pessoa = obterPessoaDoProcesso(processo.pessoaId)
                     const diasRestantes = processo.dataPrazo ? calcularDiasRestantes(processo.dataPrazo) : null
                     const vencido = diasRestantes !== null && diasRestantes < 0
                     const venceHoje = diasRestantes === 0

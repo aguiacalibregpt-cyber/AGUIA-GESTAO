@@ -20,7 +20,7 @@ ontem.setDate(ontem.getDate() - 1)
 const processosMock = [
   {
     id: 'proc-sem-prazo',
-    pessoaId: 'p1',
+    pessoaId: ' p1 ',
     tipo: TipoProcesso.AQUISICAO_ARMA_SINARM,
     numero: '001',
     status: StatusProcesso.ABERTO,
