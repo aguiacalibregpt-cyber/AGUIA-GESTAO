@@ -163,7 +163,12 @@ try {
     throw "Build nao encontrado em dist/index.html e pnpm/npm nao estao disponiveis para gerar build."
   }
 
-  $env:AGUIA_API_TOKEN = $ApiToken.Trim()
+  $tokenFinal = $ApiToken.Trim()
+  if ([string]::IsNullOrWhiteSpace($tokenFinal)) {
+    throw "AGUIA_API_TOKEN nao informado. Modo bloqueado exige token explicito para iniciar."
+  }
+
+  $env:AGUIA_API_TOKEN = $tokenFinal
   $env:AGUIA_ALLOWED_ORIGINS = $AllowedOrigins
 
   if ([string]::IsNullOrWhiteSpace($env:AGUIA_API_TOKEN)) {

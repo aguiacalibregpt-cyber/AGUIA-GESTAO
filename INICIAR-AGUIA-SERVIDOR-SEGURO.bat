@@ -17,7 +17,11 @@ echo ============================================
 echo.
 
 if "%AGUIA_API_TOKEN%"=="" (
-  echo [AVISO] Token nao informado. O servidor sera iniciado sem auth de API.
+  echo [ERRO] AGUIA_API_TOKEN nao definido.
+  echo [ERRO] Modo bloqueado exige token explicito para iniciar o servidor.
+  echo [ERRO] Defina no PowerShell antes de executar:
+  echo         $env:AGUIA_API_TOKEN = "seu-token-forte"
+  exit /b 1
 )
 
 if "%AGUIA_ALLOWED_ORIGINS%"=="" (

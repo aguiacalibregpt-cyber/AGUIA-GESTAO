@@ -219,6 +219,30 @@ const obterMaterialViaApi = async (): Promise<string | undefined> => {
   }
 }
 
+const descriptografarViaApi = async (
+  senhaArmazenada: string,
+  identificadorUsuario: string,
+): Promise<string | undefined> => {
+  try {
+    const token = obterTokenApi()
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    }
+    if (token) headers.Authorization = `Bearer ${token}`
+    const res = await fetch(`${API_BASE}/security/decrypt-senha-gov`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ senhaGov: senhaArmazenada, identificadorUsuario }),
+    })
+    if (!res.ok) return undefined
+    const body = (await res.json()) as { senhaGov?: string }
+    const senha = body?.senhaGov
+    return typeof senha === 'string' ? senha : undefined
+  } catch {
+    return undefined
+  }
+}
+
 const obterMaterialInstalacao = async (): Promise<string> => {
   if (materialInstalacaoCache) return materialInstalacaoCache
 
@@ -339,17 +363,36 @@ export const descriptografarSenhaGov = async (
   }
 
   if (!subtleDisponivel()) {
+    const senhaViaApi = await descriptografarViaApi(senhaArmazenada, identificadorUsuario)
+    if (typeof senhaViaApi === 'string') return senhaViaApi
     throw new Error('Criptografia não suportada neste ambiente')
   }
 
   const iv = bytesParaBuffer(ivBytes)
   const cifrado = bytesParaBuffer(cifradoBytes)
   const tentar = async () => {
-    const chave = prefixo === ENCRYPTION_PREFIX_V2
-      ? await derivarChaveV2(identificadorUsuario, await obterMaterialInstalacao())
-      : await derivarChaveLegacy(identificadorUsuario)
-    const plain = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, chave, cifrado)
-    return decoder.decode(plain)
+    if (prefixo === ENCRYPTION_PREFIX_LEGACY) {
+      const chaveLegacy = await derivarChaveLegacy(identificadorUsuario)
+      const plainLegacy = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, chaveLegacy, cifrado)
+      return decoder.decode(plainLegacy)
+    }
+
+    const materialPrimario = await obterMaterialInstalacao()
+    const materiais = materialPrimario === LEGACY_APP_SALT
+      ? [materialPrimario]
+      : [materialPrimario, LEGACY_APP_SALT]
+    let ultimoErro: unknown
+    for (const material of materiais) {
+      try {
+        const chaveV2 = await derivarChaveV2(identificadorUsuario, material)
+        const plainV2 = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, chaveV2, cifrado)
+        return decoder.decode(plainV2)
+      } catch (err) {
+        ultimoErro = err
+      }
+    }
+
+    throw (ultimoErro instanceof Error ? ultimoErro : new Error('Falha ao descriptografar senha v2'))
   }
 
   return tentar()

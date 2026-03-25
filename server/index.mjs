@@ -35,6 +35,10 @@ const ALLOWED_ORIGINS = (process.env.AGUIA_ALLOWED_ORIGINS || '')
   .map((item) => item.trim())
   .filter(Boolean)
 const CORS_STRICT = process.env.AGUIA_CORS_STRICT === '1'
+const ENCRYPTION_PREFIX_V2 = 'enc:v2:'
+const ENCRYPTION_PREFIX_LEGACY = 'enc:v1:'
+const DERIVATION_SALT_V2 = 'aguia::senha-gov::v2'
+const LEGACY_APP_SALT = 'aguia-despachante::senha-gov'
 
 const app = express()
 
@@ -158,6 +162,11 @@ const documentoUpdateSchema = documentoCreateSchema.partial().refine((v) => Obje
   message: 'Payload vazio para atualização',
 })
 
+const decryptSenhaGovSchema = z.object({
+  senhaGov: z.string().min(1).max(4000),
+  identificadorUsuario: z.string().max(255).optional(),
+})
+
 function validarPayload(schema, data, res, mensagem = 'Payload inválido') {
   const parsed = schema.safeParse(data)
   if (!parsed.success) {
@@ -197,7 +206,9 @@ function extrairToken(req) {
 function authMiddleware(req, res, next) {
   if (!req.path.startsWith('/api/')) return next()
   if (req.path === '/api/health') return next()
-  if (!API_TOKEN) return next()
+  if (!API_TOKEN) {
+    return res.status(503).json({ message: 'Servidor em modo bloqueado: configure AGUIA_API_TOKEN' })
+  }
   const recebido = extrairToken(req)
   if (!recebido) return res.status(401).json({ message: 'Token de acesso ausente' })
   if (recebido !== API_TOKEN) return res.status(401).json({ message: 'Token de acesso inválido' })
@@ -280,6 +291,59 @@ function normalizarCPF(cpf) {
   return String(cpf || '').replace(/\D/g, '')
 }
 
+function normalizarIdentificador(valor) {
+  return String(valor || '').replace(/\D/g, '') || String(valor || '').trim().toLowerCase()
+}
+
+function base64ParaBuffer(base64) {
+  return Buffer.from(base64, 'base64')
+}
+
+function descriptografarSenhaGovServer(senhaGov, identificadorUsuario) {
+  const prefixo = senhaGov.startsWith(ENCRYPTION_PREFIX_V2)
+    ? ENCRYPTION_PREFIX_V2
+    : senhaGov.startsWith(ENCRYPTION_PREFIX_LEGACY)
+      ? ENCRYPTION_PREFIX_LEGACY
+      : null
+  if (!prefixo) throw new Error('Formato de senha criptografada incompatível')
+
+  const payload = senhaGov.slice(prefixo.length)
+  const [ivB64, dadosB64] = payload.split('.')
+  if (!ivB64 || !dadosB64) throw new Error('Formato de senha criptografada inválido')
+
+  const iv = base64ParaBuffer(ivB64)
+  const dados = base64ParaBuffer(dadosB64)
+  if (dados.length <= 16) throw new Error('Payload de senha inválido')
+
+  const ciphertext = dados.subarray(0, dados.length - 16)
+  const authTag = dados.subarray(dados.length - 16)
+  const base = normalizarIdentificador(identificadorUsuario) || 'usuario-local'
+  const tentarComSegredoBase = (segredoBase, salt, iteracoes) => {
+    const chave = crypto.pbkdf2Sync(segredoBase, salt, iteracoes, 32, 'sha256')
+    const decipher = crypto.createDecipheriv('aes-256-gcm', chave, iv)
+    decipher.setAuthTag(authTag)
+    const plain = Buffer.concat([decipher.update(ciphertext), decipher.final()])
+    return plain.toString('utf-8')
+  }
+
+  if (prefixo === ENCRYPTION_PREFIX_LEGACY) {
+    return tentarComSegredoBase(base, LEGACY_APP_SALT, 150_000)
+  }
+
+  const materiais = [API_TOKEN ? ensureSecuritySecret() : LEGACY_APP_SALT]
+  if (materiais[0] !== LEGACY_APP_SALT) materiais.push(LEGACY_APP_SALT)
+  let ultimoErro = null
+  for (const materialInstalacao of materiais) {
+    try {
+      return tentarComSegredoBase(`${materialInstalacao}:${base}`, DERIVATION_SALT_V2, 200_000)
+    } catch (err) {
+      ultimoErro = err
+    }
+  }
+
+  throw ultimoErro || new Error('Falha ao descriptografar senha')
+}
+
 app.get('/api/health', (_, res) => {
   res.json({
     ok: true,
@@ -294,6 +358,22 @@ app.get('/api/security/material', (_, res) => {
   // Retorna material de derivação por instalação.
   const secret = ensureSecuritySecret()
   res.json({ material: secret })
+})
+
+app.post('/api/security/decrypt-senha-gov', (req, res) => {
+  if (!API_TOKEN) return res.status(503).json({ message: 'Servidor em modo bloqueado: configure AGUIA_API_TOKEN' })
+  const payload = validarPayload(decryptSenhaGovSchema, req.body, res, 'Payload inválido para descriptografia')
+  if (!payload) return
+  if (!payload.senhaGov.startsWith(ENCRYPTION_PREFIX_V2) && !payload.senhaGov.startsWith(ENCRYPTION_PREFIX_LEGACY)) {
+    return res.status(400).json({ message: 'Esquema de senha não suportado' })
+  }
+
+  try {
+    const senhaTextoPlano = descriptografarSenhaGovServer(payload.senhaGov, payload.identificadorUsuario || '')
+    return res.json({ senhaGov: senhaTextoPlano })
+  } catch {
+    return res.status(400).json({ message: 'Não foi possível descriptografar a senha' })
+  }
 })
 
 app.get('/api/backup/export', (_, res) => {
