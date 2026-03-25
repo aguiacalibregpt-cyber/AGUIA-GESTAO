@@ -63,7 +63,7 @@ const processosMock = [
 ]
 
 const pessoasMock = [
-  { id: 'p1', nome: 'Ana Lima', cpf: '111.111.111-11', telefone: '', dataCadastro: hoje, dataAtualizacao: hoje, ativo: true },
+  { id: 'p1', nome: 'Ana Líma', cpf: '111.111.111-11', telefone: '', dataCadastro: hoje, dataAtualizacao: hoje, ativo: true },
   { id: 'p2', nome: 'Bruno Silva', cpf: '222.222.222-22', telefone: '', dataCadastro: hoje, dataAtualizacao: hoje, ativo: true },
   { id: 'p3', nome: 'Carla Souza', cpf: '333.333.333-33', telefone: '', dataCadastro: hoje, dataAtualizacao: hoje, ativo: true },
 ]
@@ -106,6 +106,16 @@ describe('Processos filtros', () => {
     expect(screen.getByText('1 processo(s)')).toBeTruthy()
 
     await user.selectOptions(combos[1], 'todos')
+    expect(screen.getByText('1 processo(s)')).toBeTruthy()
+  })
+
+  test('filtra por nome ignorando acentos', async () => {
+    const user = userEvent.setup()
+    render(<Processos />)
+
+    const inputBusca = screen.getByPlaceholderText('Buscar por nº processo, tipo, nome ou CPF...')
+    await user.type(inputBusca, 'ana lima')
+
     expect(screen.getByText('1 processo(s)')).toBeTruthy()
   })
 })

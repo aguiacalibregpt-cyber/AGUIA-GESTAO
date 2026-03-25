@@ -87,6 +87,15 @@ const dataParaInput = (data?: Date): string => {
   return `${ano}-${mes}-${dia}`
 }
 
+const normalizarTextoBusca = (valor?: string): string => {
+  if (!valor) return ''
+  return valor
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim()
+}
+
 export const Processos: React.FC<ProcessosProps> = ({ pessoaIdInicial }) => {
   const { processos, carregarProcessos, adicionarProcesso, atualizarProcesso, deletarProcesso, erro, carregando: carregandoProcessos } =
     useProcessosStore()
@@ -187,14 +196,18 @@ export const Processos: React.FC<ProcessosProps> = ({ pessoaIdInicial }) => {
       if (filtroTipo !== 'todos' && p.tipo !== filtroTipo) return false
       if (busca) {
         const pessoa = pessoas.find((pe) => pe.id === p.pessoaId)
-        const textoBusca = busca.toLowerCase()
+        const textoBusca = normalizarTextoBusca(busca)
+        const numeroNormalizado = normalizarTextoBusca(p.numero)
+        const tipoNormalizado = normalizarTextoBusca(nomesTipoProcesso[p.tipo])
+        const nomePessoaNormalizado = normalizarTextoBusca(pessoa?.nome)
         const cpfNormalizado = pessoa?.cpf?.replace(/\D/g, '') || ''
         const buscaNormalizada = busca.replace(/\D/g, '')
+        const buscaCPFValida = buscaNormalizada.length > 0 && cpfNormalizado.includes(buscaNormalizada)
         if (
-          !p.numero.toLowerCase().includes(textoBusca) &&
-          !nomesTipoProcesso[p.tipo]?.toLowerCase().includes(textoBusca) &&
-          !pessoa?.nome.toLowerCase().includes(textoBusca) &&
-          !cpfNormalizado.includes(buscaNormalizada)
+          !numeroNormalizado.includes(textoBusca) &&
+          !tipoNormalizado.includes(textoBusca) &&
+          !nomePessoaNormalizado.includes(textoBusca) &&
+          !buscaCPFValida
         ) return false
       }
       if (filtroVenc !== 'todos') {

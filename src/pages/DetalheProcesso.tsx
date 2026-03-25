@@ -37,21 +37,18 @@ const DOCUMENTOS_POR_TIPO: Record<TipoProcesso, string[]> = {
     'Requerimento SINARM Assinado',
   ],
   [TipoProcesso.RENOVACAO_REGISTRO_SINARM]: [
-    'Requerimento SINARM Assinado',
-    'Foto 3x4 recente',
-    'Documento de Identificação Pessoal',
-    'Certidão de Antecedente Criminal Justiça Federal',
-    'Certidão de Antecedente Criminal Justiça Estadual',
-    'Certidão de Antecedente Criminal Justiça Militar',
-    'Certidão de Antecedente Criminal Justiça Eleitoral',
+    'Certidão de Antecedentes Criminais',
+    'Comprovante bancário de pagamento da taxa',
+    'Comprovante de Capacidade Técnica para o manuseio de arma de fogo',
     'Comprovante de Ocupação Lícita',
     'Comprovante de Residência Fixa',
-    'Comprovante de Capacidade Técnica para o manuseio de arma de fogo',
-    'Laudo de Aptidão Psicológica para o manuseio de arma de fogo',
-    'Comprovante bancário de pagamento da taxa',
+    'Documento de Identificação Pessoal',
     'EFETIVA NECESSIDADE',
-    'REGISTRO',
+    'Foto 3x4 recente',
+    'Laudo de Aptidão Psicológica para o manuseio de arma de fogo',
     'Procuração',
+    'Requerimento SINARM Assinado',
+    'REGISTRO ARMA',
   ],
   [TipoProcesso.AQUISICAO_ARMA_CR_ATIRADOR]: [
     'Certidão de Antecedentes Criminais',
@@ -59,7 +56,7 @@ const DOCUMENTOS_POR_TIPO: Record<TipoProcesso, string[]> = {
     'Comprovante de Ocupação Lícita',
     'Comprovante de Residência Fixa (5 ANOS)',
     'Declaração de não estar respondendo a inquérito policial ou a processo criminal',
-    'Declaração de Segurança do Acervo (ESPECÍFICO PARA COMPRA)',
+    'Declaração de Segurança do Acervo (ESPECIFICO PARA COMPRA)',
     'Documento de Identificação Pessoal',
     'Laudo de Aptidão Psicológica para o manuseio de arma de fogo',
     'Modelo, Marca e loja',
@@ -73,7 +70,7 @@ const DOCUMENTOS_POR_TIPO: Record<TipoProcesso, string[]> = {
     'Comprovante de Ocupação Lícita',
     'Comprovante de Residência Fixa (5 ANOS)',
     'Declaração de não estar respondendo a inquérito policial ou a processo criminal',
-    'Declaração de Segurança do Acervo (ESPECÍFICO PARA COMPRA)',
+    'Declaração de Segurança do Acervo (ESPECIFICO PARA COMPRA)',
     'Documento de Identificação Pessoal',
     'Laudo de Aptidão Psicológica para o manuseio de arma de fogo',
     'Modelo, Marca e loja',
@@ -93,7 +90,7 @@ const DOCUMENTOS_POR_TIPO: Record<TipoProcesso, string[]> = {
     'Declaração de não estar respondendo a inquérito policial ou a processo criminal',
     'Documento de Identificação Pessoal',
     'Comprovante de Residência Fixa (5 ANOS)',
-    'Declaração de Segurança do Acervo',
+    'Declaração de Segurança do Acervo (ESPECIFICO PARA COMPRA)',
     'Comprovante de Ocupação Lícita',
     'Comprovante da necessidade de abate de fauna invasora expedido pelo Ibama',
     'Comprovante de filiação a entidade de tiro desportivo',
@@ -189,6 +186,13 @@ export const DetalheProcesso: React.FC<DetalheProcessoProps> = ({ processoId, on
   const carregandoInicialChecklist = Boolean(carregandoDocumentos) && documentosProcesso.length === 0
   const atualizandoEmSegundoPlano = Boolean(carregandoDocumentos) && !carregandoInicialChecklist
 
+  const normalizarNomeChecklist = (valor: string): string =>
+    valor
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase()
+      .replace(/[^a-z0-9]/g, '')
+
   useEffect(() => {
     void carregarProcessos()
     void carregarPessoas()
@@ -224,7 +228,6 @@ export const DetalheProcesso: React.FC<DetalheProcessoProps> = ({ processoId, on
       const nomesPadrao = DOCUMENTOS_POR_TIPO[processo.tipo] ?? []
 
       // Normaliza nomes para deduplicação
-      const normalizar = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, '')
       const prioridadeStatus: Record<StatusDocumento, number> = {
         [StatusDocumento.ENTREGUE]: 4,
         [StatusDocumento.NAO_APLICAVEL]: 3,
@@ -232,7 +235,7 @@ export const DetalheProcesso: React.FC<DetalheProcessoProps> = ({ processoId, on
         [StatusDocumento.PENDENTE]: 1,
       }
       const mapaNomeCanonico = new Map<string, string>(
-        nomesPadrao.map((nome) => [normalizar(nome), nome]),
+        nomesPadrao.map((nome) => [normalizarNomeChecklist(nome), nome]),
       )
       const nomesPadraoSet = new Set(mapaNomeCanonico.keys())
 
@@ -245,7 +248,7 @@ export const DetalheProcesso: React.FC<DetalheProcessoProps> = ({ processoId, on
       const indevidosParaRemover: DocumentoProcesso[] = []
 
       for (const doc of docsPersistidos) {
-        const chave = normalizar(doc.nome)
+        const chave = normalizarNomeChecklist(doc.nome)
         if (!nomesPadraoSet.has(chave)) {
           indevidosParaRemover.push(doc)
           continue
@@ -282,19 +285,19 @@ export const DetalheProcesso: React.FC<DetalheProcessoProps> = ({ processoId, on
         }
       }
 
-      const jaCriados = new Set(Array.from(porNomeNormalizado.values()).map((d) => normalizar(d.nome)))
+      const jaCriados = new Set(Array.from(porNomeNormalizado.values()).map((d) => normalizarNomeChecklist(d.nome)))
 
       for (const nome of nomesPadrao) {
-        if (!jaCriados.has(normalizar(nome))) {
+        if (!jaCriados.has(normalizarNomeChecklist(nome))) {
           await adicionarDocumentoProcesso({
             processoId,
-            documentoId: `req-${normalizar(nome)}`,
+            documentoId: `req-${normalizarNomeChecklist(nome)}`,
             nome,
             status: StatusDocumento.PENDENTE,
             dataEntrega: undefined,
             observacoes: '',
           })
-          jaCriados.add(normalizar(nome))
+          jaCriados.add(normalizarNomeChecklist(nome))
         }
       }
       await carregarDocumentosPorProcesso(processoId)
@@ -359,9 +362,27 @@ export const DetalheProcesso: React.FC<DetalheProcessoProps> = ({ processoId, on
   const concluidos = entregues + naoAplicavel
   const porcentagem = total > 0 ? Math.round((concluidos / total) * 100) : 0
 
+  const documentosOrdenados = (() => {
+    if (!processo) return []
+    const ordemPadrao = DOCUMENTOS_POR_TIPO[processo.tipo] ?? []
+    const posicaoPorChave = new Map<string, number>(
+      ordemPadrao.map((nome, indice) => [normalizarNomeChecklist(nome), indice]),
+    )
+    return [...documentosProcesso].sort((a, b) => {
+      const indiceA = posicaoPorChave.get(normalizarNomeChecklist(a.nome))
+      const indiceB = posicaoPorChave.get(normalizarNomeChecklist(b.nome))
+      if (indiceA === undefined && indiceB === undefined) {
+        return a.nome.localeCompare(b.nome, 'pt-BR')
+      }
+      if (indiceA === undefined) return 1
+      if (indiceB === undefined) return -1
+      return indiceA - indiceB
+    })
+  })()
+
   const imprimirChecklist = () => {
     if (!processo || !pessoa) return
-    const linhas = documentosProcesso.map((d) => `<tr>
+    const linhas = documentosOrdenados.map((d) => `<tr>
       <td style="padding:6px 10px;border-bottom:1px solid #eee;">${d.nome}</td>
       <td style="padding:6px 10px;border-bottom:1px solid #eee;text-align:center;">${nomesStatusDocumento[d.status]}</td>
       <td style="padding:6px 10px;border-bottom:1px solid #eee;text-align:center;">${d.dataEntrega ? new Date(d.dataEntrega).toLocaleDateString('pt-BR') : '-'}</td>
@@ -477,7 +498,7 @@ export const DetalheProcesso: React.FC<DetalheProcessoProps> = ({ processoId, on
           </div>
         ) : (
           <ul className="divide-y divide-gray-100">
-            {documentosProcesso.map((doc) => (
+            {documentosOrdenados.map((doc) => (
               <li key={doc.id} className="flex items-center gap-4 px-5 py-3 hover:bg-gray-50 transition-colors">
                 <IconeStatus status={doc.status} />
                 <div className="flex-1 min-w-0">
