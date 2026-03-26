@@ -36,6 +36,7 @@ function AppInner() {
   const [tentativas, setTentativas] = useState(0)
   const [tempoInatividadeMinutos, setTempoInatividadeMinutos] = useState(5)
   const [tokenApiAcesso, setTokenApiAcesso] = useState('')
+  const [logoIndisponivel, setLogoIndisponivel] = useState(false)
 
   const ehErroAutenticacao = (mensagem: string): boolean => {
     const txt = mensagem.toLowerCase()
@@ -237,7 +238,16 @@ function AppInner() {
           <div className="w-full max-w-md bg-white rounded-2xl shadow-2xl p-6 space-y-4">
             <div className="flex items-center gap-3">
               <div className="h-11 w-11 rounded-lg bg-red-100 flex items-center justify-center">
-                <Lock className="w-6 h-6 text-red-700" />
+                {!logoIndisponivel ? (
+                  <img
+                    src="/logo-aguia.jpg"
+                    alt="Logotipo Águia"
+                    className="h-11 w-11 rounded-lg object-cover"
+                    onError={() => setLogoIndisponivel(true)}
+                  />
+                ) : (
+                  <Lock className="w-6 h-6 text-red-700" />
+                )}
               </div>
               <div>
                 <h2 className="text-lg font-bold text-gray-900">{estadoAcesso === 'setup' ? 'Configurar PIN' : 'Sessão bloqueada'}</h2>
@@ -379,7 +389,16 @@ function AppInner() {
           {/* Logo */}
           <div className="flex items-center gap-2 flex-shrink-0">
             <div className={`bg-red-800/60 rounded-lg flex items-center justify-center transition-all ${compacto ? 'p-1.5' : 'p-2'}`}>
-              <Shield className={`text-white transition-all ${compacto ? 'w-5 h-5' : 'w-6 h-6'}`} />
+              {!logoIndisponivel ? (
+                <img
+                  src="/logo-aguia.jpg"
+                  alt="Logotipo Águia"
+                  className={`rounded-md object-cover transition-all ${compacto ? 'w-5 h-5' : 'w-6 h-6'}`}
+                  onError={() => setLogoIndisponivel(true)}
+                />
+              ) : (
+                <Shield className={`text-white transition-all ${compacto ? 'w-5 h-5' : 'w-6 h-6'}`} />
+              )}
             </div>
             <div>
               <p className={`font-bold text-white leading-tight transition-all ${compacto ? 'text-sm' : 'text-base'}`}>{nomeEmpresa}</p>
