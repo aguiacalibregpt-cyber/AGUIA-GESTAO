@@ -64,7 +64,7 @@ const serializarProcesso = (p: Processo): ProcessoPersistido => ({
 const serializarAtualizacao = (u: Partial<Processo>) => ({
   ...u,
   dataAbertura: u.dataAbertura ? u.dataAbertura.toISOString() : undefined,
-  dataPrazo: toIso(u.dataPrazo),
+  dataPrazo: Object.prototype.hasOwnProperty.call(u, 'dataPrazo') ? (u.dataPrazo ? u.dataPrazo.toISOString() : '') : undefined,
   dataFechamento: toIso(u.dataFechamento),
   dataRestituido: toIso(u.dataRestituido),
   dataUltimaConsulta: toIso(u.dataUltimaConsulta),

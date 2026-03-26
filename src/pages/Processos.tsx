@@ -135,7 +135,6 @@ export const Processos: React.FC<ProcessosProps> = ({ pessoaIdInicial }) => {
   } | null>(null)
   const [mostraCriarPessoa, setMostraCriarPessoa] = useState(false)
   const [buscaPessoaModal, setBuscaPessoaModal] = useState('')
-  const [indicePessoaDestacada, setIndicePessoaDestacada] = useState(0)
   const [mostraSenhaNovaP, setMostraSenhaNovaP] = useState(false)
   const [formDataNovaP, setFormDataNovaP] = useState({
     nome: '',
@@ -269,7 +268,6 @@ export const Processos: React.FC<ProcessosProps> = ({ pessoaIdInicial }) => {
     setEditandoId(null)
     setFormErros({})
     setBuscaPessoaModal('')
-    setIndicePessoaDestacada(0)
     setMostraModal(true)
   }
 
@@ -287,7 +285,6 @@ export const Processos: React.FC<ProcessosProps> = ({ pessoaIdInicial }) => {
     setEditandoId(processo.id)
     setFormErros({})
     setBuscaPessoaModal('')
-    setIndicePessoaDestacada(0)
     setMostraModal(true)
   }
 
@@ -297,46 +294,6 @@ export const Processos: React.FC<ProcessosProps> = ({ pessoaIdInicial }) => {
       setFormErros((atual) => ({ ...atual, pessoaId: undefined }))
     }
   }
-
-  const lidarTecladoBuscaPessoa = (evento: React.KeyboardEvent<HTMLInputElement>) => {
-    if (evento.key === 'Enter' && pessoasFiltradasModal.length === 0) {
-      evento.preventDefault()
-      return
-    }
-
-    if (pessoasFiltradasModal.length === 0) return
-
-    if (evento.key === 'ArrowDown') {
-      evento.preventDefault()
-      setIndicePessoaDestacada((atual) => (atual + 1) % pessoasFiltradasModal.length)
-      return
-    }
-
-    if (evento.key === 'ArrowUp') {
-      evento.preventDefault()
-      setIndicePessoaDestacada((atual) => (atual - 1 + pessoasFiltradasModal.length) % pessoasFiltradasModal.length)
-      return
-    }
-
-    if (evento.key === 'Enter' && indicePessoaDestacada >= 0) {
-      evento.preventDefault()
-      const pessoa = pessoasFiltradasModal[indicePessoaDestacada]
-      if (pessoa) selecionarPessoaNoModal(pessoa.id)
-    }
-  }
-
-  useEffect(() => {
-    if (!mostraModal) return
-    if (pessoasFiltradasModal.length === 0) {
-      setIndicePessoaDestacada(-1)
-      return
-    }
-
-    const indiceSelecionada = pessoasFiltradasModal.findIndex(
-      (pessoa) => normalizarIdRelacionamento(pessoa.id) === normalizarIdRelacionamento(formData.pessoaId),
-    )
-    setIndicePessoaDestacada(indiceSelecionada >= 0 ? indiceSelecionada : 0)
-  }, [mostraModal, pessoasFiltradasModal, formData.pessoaId])
 
   useEffect(() => {
     if (!mostraModal) return
@@ -412,7 +369,6 @@ export const Processos: React.FC<ProcessosProps> = ({ pessoaIdInicial }) => {
             dataAbertura: atual.dataAbertura,
           }))
           setBuscaPessoaModal('')
-          setIndicePessoaDestacada(0)
           setFormErros({})
           window.requestAnimationFrame(() => {
             inputBuscaPessoaRef.current?.focus()
@@ -1094,7 +1050,6 @@ export const Processos: React.FC<ProcessosProps> = ({ pessoaIdInicial }) => {
                     type="text"
                     value={buscaPessoaModal}
                     onChange={(e) => setBuscaPessoaModal(e.target.value)}
-                    onKeyDown={lidarTecladoBuscaPessoa}
                     placeholder="Pesquisar pessoa por nome ou CPF"
                     className="w-full border border-gray-300 rounded-lg pl-10 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-500"
                   />
@@ -1114,14 +1069,12 @@ export const Processos: React.FC<ProcessosProps> = ({ pessoaIdInicial }) => {
                       <div className="max-h-40 overflow-y-auto rounded-lg border border-gray-200 bg-white" role="listbox" aria-label="Pessoas disponíveis">
                         {pessoasFiltradasModal.map((p, indice) => {
                           const selecionada = normalizarIdRelacionamento(p.id) === normalizarIdRelacionamento(formData.pessoaId)
-                          const destacada = indice === indicePessoaDestacada
                           return (
                             <button
                               key={p.id}
                               type="button"
                               onClick={() => selecionarPessoaNoModal(p.id)}
-                              onMouseEnter={() => setIndicePessoaDestacada(indice)}
-                              className={`w-full flex items-center justify-between text-left px-3 py-2 text-sm border-b border-gray-100 last:border-b-0 transition-colors ${destacada ? 'bg-red-50' : 'hover:bg-gray-50'} ${selecionada ? 'text-red-700 font-medium' : 'text-gray-700'}`}
+                              className={`w-full flex items-center justify-between text-left px-3 py-2 text-sm border-b border-gray-100 last:border-b-0 transition-colors hover:bg-gray-50 ${selecionada ? 'bg-red-50 text-red-700 font-medium' : 'text-gray-700'}`}
                               aria-selected={selecionada}
                             >
                               <span className="truncate pr-3">{p.nome} - {p.cpf}</span>
@@ -1130,7 +1083,6 @@ export const Processos: React.FC<ProcessosProps> = ({ pessoaIdInicial }) => {
                           )
                         })}
                       </div>
-                      {pessoasFiltradasModal.length > 0 && <p className="text-[11px] text-gray-500 mt-2">Dica: use setas para navegar e Enter para selecionar.</p>}
                     </>
                   )}
                 </div>
@@ -1147,7 +1099,7 @@ export const Processos: React.FC<ProcessosProps> = ({ pessoaIdInicial }) => {
                   Criar nova pessoa rapidamente
                 </button>
               </div>
-              <div>
+              <div className="md:col-span-1">
                 <label className="block text-sm font-medium text-gray-700 mb-1">📋 Tipo de Processo *</label>
                 <select
                   value={formData.tipo}
@@ -1161,6 +1113,18 @@ export const Processos: React.FC<ProcessosProps> = ({ pessoaIdInicial }) => {
                   ))}
                 </select>
                 {formErros.tipo && <p className="text-xs text-red-600 mt-1">{formErros.tipo}</p>}
+              </div>
+              <div className="md:col-span-1">
+                <label className="block text-sm font-medium text-gray-700 mb-1">📊 Status</label>
+                <select
+                  value={formData.status}
+                  onChange={(e) => setFormData({ ...formData, status: e.target.value as StatusProcesso })}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-500"
+                >
+                  {STATUS_OPTIONS.map((o) => (
+                    <option key={o.value} value={o.value}>{o.label}</option>
+                  ))}
+                </select>
               </div>
               </fieldset>
               {/* Seção: Detalhes */}
@@ -1176,18 +1140,6 @@ export const Processos: React.FC<ProcessosProps> = ({ pessoaIdInicial }) => {
                 />
                 </div>
               )}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">📊 Status</label>
-                <select
-                  value={formData.status}
-                  onChange={(e) => setFormData({ ...formData, status: e.target.value as StatusProcesso })}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-500"
-                >
-                  {STATUS_OPTIONS.map((o) => (
-                    <option key={o.value} value={o.value}>{o.label}</option>
-                  ))}
-                </select>
-              </div>
               <div className="grid grid-cols-2 gap-3 md:col-span-2">
                 <Input
                   label="📅 Data de Abertura *"
@@ -1205,16 +1157,32 @@ export const Processos: React.FC<ProcessosProps> = ({ pessoaIdInicial }) => {
                       type="date"
                       value={formData.dataPrazo}
                       onChange={(e) => setFormData({ ...formData, dataPrazo: e.target.value })}
-                      className={`w-full px-3 py-2 pr-10 border rounded-lg text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent ${formErros.dataPrazo ? 'border-red-400 bg-red-50' : 'border-gray-300 bg-white'}`}
+                      className={`w-full px-3 py-2 pr-24 border rounded-lg text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent ${formErros.dataPrazo ? 'border-red-400 bg-red-50' : 'border-gray-300 bg-white'}`}
                     />
-                    <button
-                      type="button"
-                      onClick={() => abrirSeletorData(inputDataPrazoModalRef.current)}
-                      className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 rounded-md text-gray-500 hover:bg-gray-100 hover:text-gray-700"
-                      title="Abrir calendário"
-                    >
-                      <CalendarDays className="w-4 h-4" />
-                    </button>
+                    <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
+                      {formData.dataPrazo && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (window.confirm('Deseja realmente limpar a data prazo deste processo?')) {
+                              setFormData({ ...formData, dataPrazo: '' })
+                            }
+                          }}
+                          className="px-2 py-1 rounded-md text-xs font-medium text-gray-600 hover:bg-gray-100"
+                          title="Limpar data prazo"
+                        >
+                          Limpar
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => abrirSeletorData(inputDataPrazoModalRef.current)}
+                        className="p-1.5 rounded-md text-gray-500 hover:bg-gray-100 hover:text-gray-700"
+                        title="Abrir calendário"
+                      >
+                        <CalendarDays className="w-4 h-4" />
+                      </button>
+                    </div>
                   </div>
                   {formErros.dataPrazo && <p className="text-xs text-red-600">{formErros.dataPrazo}</p>}
                 </div>
