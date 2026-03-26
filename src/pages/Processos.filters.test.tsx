@@ -137,7 +137,8 @@ describe('Processos filtros', () => {
 
     await user.click(screen.getByRole('button', { name: 'Novo Processo' }))
 
-    expect(screen.getByText('Comece digitando nome ou CPF para listar pessoas.')).toBeTruthy()
+    expect(screen.queryByRole('listbox', { name: 'Sugestões de pessoas' })).toBeNull()
+    expect(screen.queryByText('Use a barra acima para pesquisar e clique em uma sugestão para selecionar.')).toBeNull()
     expect(screen.queryByRole('button', { name: /Bruno Silva - 222\.222\.222-22/i })).toBeNull()
   })
 
@@ -184,7 +185,18 @@ describe('Processos filtros', () => {
     const buscaPessoa = screen.getByPlaceholderText('Pesquisar pessoa por nome ou CPF')
     await user.type(buscaPessoa, 'bruno')
 
-    expect(screen.getByText('Pessoa selecionada: Bruno Silva')).toBeTruthy()
+    const dialog = screen.getByRole('dialog', { name: 'Novo Processo' })
+    const combos = within(dialog).getAllByRole('combobox') as HTMLSelectElement[]
+    const comboTipo = combos.find((combo) => Array.from(combo.options).some((op) => op.value === TipoProcesso.CRAF_CR))
+    expect(comboTipo).toBeTruthy()
+    await user.selectOptions(comboTipo as HTMLSelectElement, TipoProcesso.CRAF_CR)
+
+    await user.click(screen.getByRole('button', { name: 'Cadastrar' }))
+
+    await waitFor(() => {
+      expect(mockAdicionarProcesso).toHaveBeenCalledTimes(1)
+    })
+    expect(mockAdicionarProcesso).toHaveBeenCalledWith(expect.objectContaining({ pessoaId: 'p2' }))
   })
 
   test('Esc fecha apenas modal de Nova Pessoa e mantém Novo Processo aberto', async () => {
