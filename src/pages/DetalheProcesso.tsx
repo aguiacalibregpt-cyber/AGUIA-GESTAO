@@ -164,7 +164,7 @@ interface DetalheProcessoProps {
 }
 
 export const DetalheProcesso: React.FC<DetalheProcessoProps> = ({ processoId, onVoltar }) => {
-  const { processos, atualizarStatusProcesso, carregarProcessos, erro: erroProcessos } = useProcessosStore()
+  const { processos, atualizarProcesso, atualizarStatusProcesso, carregarProcessos, erro: erroProcessos } = useProcessosStore()
   const { pessoas, carregarPessoas, erro: erroPessoas } = usePessoasStore()
   const {
     documentosProcesso,
@@ -178,6 +178,8 @@ export const DetalheProcesso: React.FC<DetalheProcessoProps> = ({ processoId, on
     useDocumentosStore()
   const [sincronizando, setSincronizando] = useState(false)
   const [mensagem, setMensagem] = useState<{ tipo: 'success' | 'error'; texto: string } | null>(null)
+  const [observacoesProcesso, setObservacoesProcesso] = useState('')
+  const [observacoesDraft, setObservacoesDraft] = useState<Record<string, string>>({})
   const sincronizacaoEmAndamentoRef = useRef(false)
   const autoSyncExecutadaRef = useRef(false)
 
@@ -218,6 +220,10 @@ export const DetalheProcesso: React.FC<DetalheProcessoProps> = ({ processoId, on
     document.addEventListener('visibilitychange', aoVoltarParaAba)
     return () => document.removeEventListener('visibilitychange', aoVoltarParaAba)
   }, [processoId, carregarProcessos, carregarDocumentosPorProcesso])
+
+  useEffect(() => {
+    setObservacoesProcesso(processo?.observacoes || '')
+  }, [processo?.id, processo?.observacoes])
 
   // Sincroniza documentos do checklist com o banco (deduplica, adiciona faltantes)
   const sincronizarChecklist = useCallback(async (opts?: { silencioso?: boolean }) => {
@@ -355,6 +361,56 @@ export const DetalheProcesso: React.FC<DetalheProcessoProps> = ({ processoId, on
     }
   }
 
+  const salvarObservacoesProcesso = async () => {
+    const textoDraft = observacoesProcesso.trim()
+    const textoAtual = (processo?.observacoes || '').trim()
+    if (!processo || textoDraft === textoAtual) return
+
+    try {
+      await atualizarProcesso(processo.id, { observacoes: textoDraft })
+    } catch (error) {
+      setMensagem({ tipo: 'error', texto: obterMensagemErro(error, 'Erro ao salvar observações do processo') })
+    }
+  }
+
+  useEffect(() => {
+    setObservacoesDraft((atual) => {
+      const proximo = { ...atual }
+      let alterou = false
+
+      documentosProcesso.forEach((doc) => {
+        if (!(doc.id in proximo)) {
+          proximo[doc.id] = doc.observacoes || ''
+          alterou = true
+        }
+      })
+
+      Object.keys(proximo).forEach((docId) => {
+        if (!documentosProcesso.some((doc) => doc.id === docId)) {
+          delete proximo[docId]
+          alterou = true
+        }
+      })
+
+      return alterou ? proximo : atual
+    })
+  }, [documentosProcesso])
+
+  const salvarObservacoesDoc = async (docId: string) => {
+    const doc = documentosProcesso.find((item) => item.id === docId)
+    if (!doc) return
+
+    const textoDraft = (observacoesDraft[docId] || '').trim()
+    const textoAtual = (doc.observacoes || '').trim()
+    if (textoDraft === textoAtual) return
+
+    try {
+      await atualizarDocumentoProcesso(docId, { observacoes: textoDraft })
+    } catch (error) {
+      setMensagem({ tipo: 'error', texto: obterMensagemErro(error, 'Erro ao salvar observações do documento') })
+    }
+  }
+
   // Cálculo de progresso
   const total = documentosProcesso.length
   const entregues = documentosProcesso.filter((d) => d.status === StatusDocumento.ENTREGUE).length
@@ -479,10 +535,25 @@ export const DetalheProcesso: React.FC<DetalheProcessoProps> = ({ processoId, on
         </div>
       </div>
 
+      <div className="bg-white rounded-2xl shadow-sm ring-1 ring-black/5 p-5">
+        <div className="mb-2">
+          <h2 className="text-sm font-semibold text-gray-800">Observações do processo</h2>
+          <p className="text-xs text-gray-500 mt-0.5">Mesmo campo usado em Credenciais e no formulário de Novo Processo.</p>
+        </div>
+        <textarea
+          value={observacoesProcesso}
+          onChange={(e) => setObservacoesProcesso(e.target.value)}
+          onBlur={() => void salvarObservacoesProcesso()}
+          placeholder="Registre aqui observações gerais deste processo..."
+          className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-600 resize-y min-h-[110px]"
+        />
+      </div>
+
       {/* Checklist */}
       <div className="bg-white rounded-2xl shadow-sm ring-1 ring-black/5 overflow-hidden">
         <div className="px-5 py-4 border-b border-gray-100 bg-gray-50">
           <h2 className="font-semibold text-gray-800">Documentos exigidos</h2>
+          <p className="text-xs text-gray-500 mt-1">Atualize o status e registre observações em cada documento para manter o histórico completo.</p>
         </div>
         {carregandoInicialChecklist ? (
           <div className="p-8 space-y-3">
@@ -499,31 +570,55 @@ export const DetalheProcesso: React.FC<DetalheProcessoProps> = ({ processoId, on
         ) : (
           <ul className="divide-y divide-gray-100">
             {documentosOrdenados.map((doc) => (
-              <li key={doc.id} className="flex items-center gap-4 px-5 py-3 hover:bg-gray-50 transition-colors">
-                <IconeStatus status={doc.status} />
-                <div className="flex-1 min-w-0">
-                  <p className={`text-sm font-medium ${doc.status === StatusDocumento.NAO_APLICAVEL ? 'line-through text-gray-400' : 'text-gray-800'}`}>
-                    {doc.nome}
-                  </p>
-                  {doc.dataEntrega && (
-                    <p className="text-xs text-gray-400">
-                      Entregue em {new Date(doc.dataEntrega).toLocaleDateString('pt-BR')}
-                    </p>
-                  )}
-                  {doc.observacoes && <p className="text-xs text-gray-400 italic">{doc.observacoes}</p>}
-                </div>
-                <div className="flex items-center gap-1">
-                  {([StatusDocumento.PENDENTE, StatusDocumento.ENTREGUE, StatusDocumento.REJEITADO, StatusDocumento.NAO_APLICAVEL] as StatusDocumento[]).map((s) => (
-                    <button
-                      key={s}
-                      onClick={() => void handleStatusDoc(doc.id, s)}
-                      title={nomesStatusDocumento[s]}
-                      aria-label={`${nomesStatusDocumento[s]}: ${doc.nome}`}
-                      className={`text-xs px-2 py-1 rounded-md border transition-colors ${doc.status === s ? coresStatusDocumento[s] + ' border-current' : 'border-gray-200 text-gray-400 hover:bg-gray-100'}`}
-                    >
-                      {s === StatusDocumento.PENDENTE ? '?' : s === StatusDocumento.ENTREGUE ? '✓' : s === StatusDocumento.REJEITADO ? '✗' : 'N/A'}
-                    </button>
-                  ))}
+              <li key={doc.id} className="px-5 py-4 hover:bg-gray-50 transition-colors">
+                <div className="flex items-start gap-3">
+                  <div className="pt-0.5">
+                    <IconeStatus status={doc.status} />
+                  </div>
+                  <div className="flex-1 min-w-0 space-y-3">
+                    <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className={`text-sm font-semibold ${doc.status === StatusDocumento.NAO_APLICAVEL ? 'line-through text-gray-400' : 'text-gray-800'}`}>
+                          {doc.nome}
+                        </p>
+                        {doc.dataEntrega && (
+                          <p className="text-xs text-gray-500 mt-0.5">
+                            Entregue em {new Date(doc.dataEntrega).toLocaleDateString('pt-BR')}
+                          </p>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        {([StatusDocumento.PENDENTE, StatusDocumento.ENTREGUE, StatusDocumento.REJEITADO, StatusDocumento.NAO_APLICAVEL] as StatusDocumento[]).map((s) => (
+                          <button
+                            key={s}
+                            onClick={() => void handleStatusDoc(doc.id, s)}
+                            title={nomesStatusDocumento[s]}
+                            aria-label={`${nomesStatusDocumento[s]}: ${doc.nome}`}
+                            className={`text-xs px-2.5 py-1.5 rounded-md border transition-colors ${doc.status === s ? coresStatusDocumento[s] + ' border-current' : 'border-gray-200 text-gray-500 hover:bg-gray-100'}`}
+                          >
+                            {s === StatusDocumento.PENDENTE ? '?' : s === StatusDocumento.ENTREGUE ? '✓' : s === StatusDocumento.REJEITADO ? '✗' : 'N/A'}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div>
+                      <label htmlFor={`obs-doc-${doc.id}`} className="block text-xs font-medium text-gray-500 mb-1">
+                        Observações
+                      </label>
+                      <textarea
+                        id={`obs-doc-${doc.id}`}
+                        value={observacoesDraft[doc.id] ?? ''}
+                        onChange={(e) => {
+                          const texto = e.target.value
+                          setObservacoesDraft((atual) => ({ ...atual, [doc.id]: texto }))
+                        }}
+                        onBlur={() => void salvarObservacoesDoc(doc.id)}
+                        placeholder="Anote pendências, retorno do cliente ou detalhes deste documento..."
+                        className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-700 bg-white focus:outline-none focus:ring-2 focus:ring-red-500 resize-y min-h-[72px]"
+                      />
+                    </div>
+                  </div>
                 </div>
               </li>
             ))}
