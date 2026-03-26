@@ -152,8 +152,10 @@ describe('Processos filtros', () => {
     const buscaPessoa = screen.getByPlaceholderText('Pesquisar pessoa por nome ou CPF')
     await user.type(buscaPessoa, 'bruno')
 
-    const comboTipo = within(dialog).getAllByRole('combobox')[1]
-    await user.selectOptions(comboTipo, TipoProcesso.CRAF_CR)
+    const combos = within(dialog).getAllByRole('combobox') as HTMLSelectElement[]
+    const comboTipo = combos.find((combo) => Array.from(combo.options).some((op) => op.value === TipoProcesso.CRAF_CR))
+    expect(comboTipo).toBeTruthy()
+    await user.selectOptions(comboTipo as HTMLSelectElement, TipoProcesso.CRAF_CR)
 
     fireEvent.keyDown(window, { key: 'Enter', ctrlKey: true })
 

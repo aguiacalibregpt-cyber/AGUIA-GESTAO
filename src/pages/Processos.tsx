@@ -114,6 +114,7 @@ export const Processos: React.FC<ProcessosProps> = ({ pessoaIdInicial }) => {
   const [filtroVenc, setFiltroVenc] = useState<FiltroVenc>('todos')
   const [formData, setFormData] = useState({ ...FORM_INICIAL, pessoaId: pessoaIdInicial || '' })
   const [formErros, setFormErros] = useState<Partial<Record<string, string>>>({})
+  const [confirmacaoLimparPrazo, setConfirmacaoLimparPrazo] = useState<{ tipo: 'modal' | 'lista'; processoId?: string } | null>(null)
   const [processoParaExcluir, setProcessoParaExcluir] = useState<{ id: string; numero: string } | null>(null)
   const [mensagem, setMensagem] = useState<{ tipo: 'success' | 'error'; texto: string } | null>(null)
   const [ultimoProcessoComCredenciais, setUltimoProcessoComCredenciais] = useState<string | null>(null)
@@ -134,6 +135,7 @@ export const Processos: React.FC<ProcessosProps> = ({ pessoaIdInicial }) => {
   } | null>(null)
   const [mostraCriarPessoa, setMostraCriarPessoa] = useState(false)
   const [buscaPessoaModal, setBuscaPessoaModal] = useState('')
+  const [mostraSugestoesPessoa, setMostraSugestoesPessoa] = useState(false)
   const [mostraSenhaNovaP, setMostraSenhaNovaP] = useState(false)
   const [formDataNovaP, setFormDataNovaP] = useState({
     nome: '',
@@ -267,6 +269,7 @@ export const Processos: React.FC<ProcessosProps> = ({ pessoaIdInicial }) => {
     setEditandoId(null)
     setFormErros({})
     setBuscaPessoaModal('')
+    setMostraSugestoesPessoa(false)
     setMostraModal(true)
   }
 
@@ -284,11 +287,17 @@ export const Processos: React.FC<ProcessosProps> = ({ pessoaIdInicial }) => {
     setEditandoId(processo.id)
     setFormErros({})
     setBuscaPessoaModal('')
+    setMostraSugestoesPessoa(false)
     setMostraModal(true)
   }
 
-  const selecionarPessoaNoModal = (pessoaId: string) => {
+  const selecionarPessoaNoModal = (pessoaId: string, preencherBusca = false) => {
     setFormData((atual) => ({ ...atual, pessoaId }))
+    if (preencherBusca) {
+      const pessoa = pessoasPorId.get(normalizarIdRelacionamento(pessoaId))
+      if (pessoa) setBuscaPessoaModal(`${pessoa.nome} - ${pessoa.cpf}`)
+      setMostraSugestoesPessoa(false)
+    }
     if (formErros.pessoaId) {
       setFormErros((atual) => ({ ...atual, pessoaId: undefined }))
     }
@@ -487,7 +496,6 @@ export const Processos: React.FC<ProcessosProps> = ({ pessoaIdInicial }) => {
   }
 
   const limparDataPrazo = async (processoId: string) => {
-    if (!window.confirm('Deseja realmente limpar a data prazo deste processo?')) return
     try {
       await atualizarProcesso(processoId, { dataPrazo: undefined })
       setMensagem({ tipo: 'success', texto: 'Data prazo removida com sucesso!' })
@@ -534,6 +542,19 @@ export const Processos: React.FC<ProcessosProps> = ({ pessoaIdInicial }) => {
     } finally {
       setProcessoParaExcluir(null)
     }
+  }
+
+  const confirmarLimpezaPrazo = async () => {
+    if (!confirmacaoLimparPrazo) return
+    if (confirmacaoLimparPrazo.tipo === 'modal') {
+      setFormData((atual) => ({ ...atual, dataPrazo: '' }))
+      setConfirmacaoLimparPrazo(null)
+      return
+    }
+    if (confirmacaoLimparPrazo.processoId) {
+      await limparDataPrazo(confirmacaoLimparPrazo.processoId)
+    }
+    setConfirmacaoLimparPrazo(null)
   }
 
   useEffect(() => {
@@ -826,7 +847,7 @@ export const Processos: React.FC<ProcessosProps> = ({ pessoaIdInicial }) => {
                               </button>
                               <button
                                 type="button"
-                                onClick={() => void limparDataPrazo(processo.id)}
+                                onClick={() => setConfirmacaoLimparPrazo({ tipo: 'lista', processoId: processo.id })}
                                 className="px-2 py-1 text-xs font-medium bg-amber-100 text-amber-800 rounded hover:bg-amber-200"
                               >
                                 Limpar
@@ -1064,7 +1085,7 @@ export const Processos: React.FC<ProcessosProps> = ({ pessoaIdInicial }) => {
                 <legend className="md:col-span-2 text-xs font-semibold text-gray-400 uppercase tracking-wider">Identificação</legend>
               <div className="md:col-span-2">
                 {editandoId ? (
-                  <div className="rounded-xl border border-gray-200 bg-gray-50/70 p-3 grid grid-cols-1 md:grid-cols-3 gap-3">
+                  <div className="rounded-xl border border-gray-200 bg-gray-50/70 p-3 grid grid-cols-1 md:grid-cols-2 gap-3">
                     <div>
                       <p className="text-xs font-medium text-gray-500">Nome</p>
                       <p className="text-sm font-semibold text-gray-800">{pessoaEditando?.nome || 'Pessoa não encontrada'}</p>
@@ -1072,10 +1093,6 @@ export const Processos: React.FC<ProcessosProps> = ({ pessoaIdInicial }) => {
                     <div>
                       <p className="text-xs font-medium text-gray-500">Tipo de processo</p>
                       <p className="text-sm text-gray-800">{formData.tipo ? nomesTipoProcesso[formData.tipo as TipoProcesso] : '-'}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs font-medium text-gray-500">Data de início</p>
-                      <p className="text-sm text-gray-800">{formData.dataAbertura ? formatarData(converterDataStringParaDate(formData.dataAbertura)) : '-'}</p>
                     </div>
                   </div>
                 ) : (
@@ -1087,10 +1104,37 @@ export const Processos: React.FC<ProcessosProps> = ({ pessoaIdInicial }) => {
                         ref={inputBuscaPessoaRef}
                         type="text"
                         value={buscaPessoaModal}
-                        onChange={(e) => setBuscaPessoaModal(e.target.value)}
+                        onFocus={() => setMostraSugestoesPessoa(true)}
+                        onBlur={() => {
+                          window.setTimeout(() => setMostraSugestoesPessoa(false), 120)
+                        }}
+                        onChange={(e) => {
+                          setBuscaPessoaModal(e.target.value)
+                          setMostraSugestoesPessoa(true)
+                          if (formData.pessoaId) {
+                            setFormData((atual) => ({ ...atual, pessoaId: '' }))
+                          }
+                        }}
                         placeholder="Pesquisar pessoa por nome ou CPF"
                         className="w-full border border-gray-300 rounded-lg pl-10 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-500"
                       />
+                      {buscaPessoaModal.trim() && mostraSugestoesPessoa && (
+                        <div className="absolute z-20 mt-1 w-full max-h-48 overflow-y-auto rounded-lg border border-gray-200 bg-white shadow-lg" role="listbox" aria-label="Sugestões de pessoas">
+                          {pessoasFiltradasModal.map((p) => (
+                            <button
+                              key={p.id}
+                              type="button"
+                              onClick={() => selecionarPessoaNoModal(p.id, true)}
+                              className="w-full text-left px-3 py-2 text-sm hover:bg-red-50 border-b border-gray-100 last:border-b-0"
+                            >
+                              {p.nome} - {p.cpf}
+                            </button>
+                          ))}
+                          {pessoasFiltradasModal.length === 0 && (
+                            <p className="px-3 py-2 text-xs text-amber-700">Nenhuma pessoa encontrada para essa busca.</p>
+                          )}
+                        </div>
+                      )}
                     </div>
                     <div className="rounded-xl border border-gray-200 bg-gray-50/70 p-2 space-y-2">
                       {formData.pessoaId && (
@@ -1101,21 +1145,11 @@ export const Processos: React.FC<ProcessosProps> = ({ pessoaIdInicial }) => {
                           Comece digitando nome ou CPF para listar pessoas.
                         </p>
                       ) : (
-                        <select
-                          value={formData.pessoaId}
-                          onChange={(e) => selecionarPessoaNoModal(e.target.value)}
-                          className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-500 bg-white"
-                        >
-                          <option value="">Selecione a pessoa encontrada</option>
-                          {pessoasFiltradasModal.map((p) => (
-                            <option key={p.id} value={p.id}>{p.nome} - {p.cpf}</option>
-                          ))}
-                        </select>
+                        <p className="text-xs text-gray-500 bg-white border border-gray-200 rounded-lg px-3 py-2">
+                          Use a barra acima para pesquisar e clique em uma sugestão para selecionar.
+                        </p>
                       )}
                     </div>
-                    {buscaPessoaModal && pessoasFiltradasModal.length === 0 && (
-                      <p className="text-xs text-amber-700 mt-2">Nenhuma pessoa encontrada para essa busca.</p>
-                    )}
                     {formErros.pessoaId && <p className="text-xs text-red-600 mt-1">{formErros.pessoaId}</p>}
                     <button
                       type="button"
@@ -1192,11 +1226,7 @@ export const Processos: React.FC<ProcessosProps> = ({ pessoaIdInicial }) => {
                       {formData.dataPrazo && (
                         <button
                           type="button"
-                          onClick={() => {
-                            if (window.confirm('Deseja realmente limpar a data prazo deste processo?')) {
-                              setFormData({ ...formData, dataPrazo: '' })
-                            }
-                          }}
+                          onClick={() => setConfirmacaoLimparPrazo({ tipo: 'modal' })}
                           className="px-2 py-1 rounded-md text-xs font-medium text-gray-600 hover:bg-gray-100"
                           title="Limpar data prazo"
                         >
@@ -1342,6 +1372,16 @@ export const Processos: React.FC<ProcessosProps> = ({ pessoaIdInicial }) => {
           </div>
         </div>
       )}
+
+      <ConfirmDialog
+        open={confirmacaoLimparPrazo !== null}
+        title="Limpar Data Prazo"
+        message="Deseja realmente limpar a data prazo deste processo?"
+        confirmText="Sim, limpar"
+        danger
+        onConfirm={() => void confirmarLimpezaPrazo()}
+        onCancel={() => setConfirmacaoLimparPrazo(null)}
+      />
 
       <ConfirmDialog
         open={processoParaExcluir !== null}
