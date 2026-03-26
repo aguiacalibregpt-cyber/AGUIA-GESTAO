@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, test, vi } from 'vitest'
 import { Processos } from './Processos'
@@ -118,4 +118,89 @@ describe('Processos filtros', () => {
 
     expect(screen.getByText('1 processo(s)')).toBeTruthy()
   })
+
+  test('nao submete formulario ao pressionar Enter na busca de pessoa sem resultados', async () => {
+    const user = userEvent.setup()
+    render(<Processos />)
+
+    await user.click(screen.getByRole('button', { name: 'Novo Processo' }))
+    const buscaPessoa = screen.getByPlaceholderText('Pesquisar pessoa por nome ou CPF')
+    await user.type(buscaPessoa, 'pessoa inexistente')
+    await user.keyboard('{Enter}')
+
+    expect(screen.queryByText('Selecione o tipo de processo')).toBeNull()
+  })
+
+  test('Ctrl+Enter no modal salva quando formulario esta valido', async () => {
+    const user = userEvent.setup()
+    render(<Processos />)
+
+    await user.click(screen.getByRole('button', { name: 'Novo Processo' }))
+    const dialog = screen.getByRole('dialog', { name: 'Novo Processo' })
+    expect(dialog).toBeTruthy()
+
+    const buscaPessoa = screen.getByPlaceholderText('Pesquisar pessoa por nome ou CPF')
+    await user.type(buscaPessoa, 'bruno')
+
+    const comboTipo = within(dialog).getAllByRole('combobox')[0]
+    await user.selectOptions(comboTipo, TipoProcesso.CRAF_CR)
+
+    fireEvent.keyDown(window, { key: 'Enter', ctrlKey: true })
+
+    await waitFor(() => {
+      expect(mockAdicionarProcesso).toHaveBeenCalledTimes(1)
+    })
+  })
+
+  test('Esc fecha o modal de novo processo', async () => {
+    const user = userEvent.setup()
+    render(<Processos />)
+
+    await user.click(screen.getByRole('button', { name: 'Novo Processo' }))
+    expect(screen.getByRole('dialog', { name: 'Novo Processo' })).toBeTruthy()
+
+    await user.keyboard('{Escape}')
+
+    expect(screen.queryByRole('dialog', { name: 'Novo Processo' })).toBeNull()
+  })
+
+  test('busca de pessoa com resultado unico auto seleciona pessoa no modal', async () => {
+    const user = userEvent.setup()
+    render(<Processos />)
+
+    await user.click(screen.getByRole('button', { name: 'Novo Processo' }))
+    const buscaPessoa = screen.getByPlaceholderText('Pesquisar pessoa por nome ou CPF')
+    await user.type(buscaPessoa, 'bruno')
+
+    expect(screen.getByText('Pessoa selecionada: Bruno Silva')).toBeTruthy()
+  })
+
+  test('Esc fecha apenas modal de Nova Pessoa e mantém Novo Processo aberto', async () => {
+    const user = userEvent.setup()
+    render(<Processos />)
+
+    await user.click(screen.getByRole('button', { name: 'Novo Processo' }))
+    expect(screen.getByRole('dialog', { name: 'Novo Processo' })).toBeTruthy()
+
+    await user.click(screen.getByRole('button', { name: 'Criar nova pessoa rapidamente' }))
+    expect(screen.getByRole('dialog', { name: 'Nova Pessoa' })).toBeTruthy()
+
+    await user.keyboard('{Escape}')
+
+    expect(screen.queryByRole('dialog', { name: 'Nova Pessoa' })).toBeNull()
+    expect(screen.getByRole('dialog', { name: 'Novo Processo' })).toBeTruthy()
+  })
+
+  test('Ctrl+Enter nao salva processo enquanto modal de Nova Pessoa estiver aberto', async () => {
+    const user = userEvent.setup()
+    render(<Processos />)
+
+    await user.click(screen.getByRole('button', { name: 'Novo Processo' }))
+    await user.click(screen.getByRole('button', { name: 'Criar nova pessoa rapidamente' }))
+
+    fireEvent.keyDown(window, { key: 'Enter', ctrlKey: true })
+
+    expect(mockAdicionarProcesso).not.toHaveBeenCalled()
+  })
+
 })

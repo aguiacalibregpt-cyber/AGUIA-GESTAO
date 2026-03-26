@@ -32,6 +32,8 @@ import {
   ArrowUp,
   XCircle,
   CalendarDays,
+  UserPlus,
+  Check,
 } from 'lucide-react'
 import { registrarAcessoSenhaGov } from '../lib/crypto'
 import { DetalheProcesso } from './DetalheProcesso'
@@ -132,6 +134,8 @@ export const Processos: React.FC<ProcessosProps> = ({ pessoaIdInicial }) => {
     ultimaConsulta: Date | null
   } | null>(null)
   const [mostraCriarPessoa, setMostraCriarPessoa] = useState(false)
+  const [buscaPessoaModal, setBuscaPessoaModal] = useState('')
+  const [indicePessoaDestacada, setIndicePessoaDestacada] = useState(0)
   const [mostraSenhaNovaP, setMostraSenhaNovaP] = useState(false)
   const [formDataNovaP, setFormDataNovaP] = useState({
     nome: '',
@@ -145,6 +149,8 @@ export const Processos: React.FC<ProcessosProps> = ({ pessoaIdInicial }) => {
   const [formErrosNovaP, setFormErrosNovaP] = useState<Partial<Record<string, string>>>({})
   const [salvandoNovaP, setSalvandoNovaP] = useState(false)
   const [salvandoProcesso, setSalvandoProcesso] = useState(false)
+  const formProcessoRef = React.useRef<HTMLFormElement | null>(null)
+  const inputBuscaPessoaRef = React.useRef<HTMLInputElement | null>(null)
   const inputDataPrazoInlineRef = React.useRef<HTMLInputElement | null>(null)
   const inputDataPrazoModalRef = React.useRef<HTMLInputElement | null>(null)
   const carregandoInicial = Boolean(carregandoProcessos || carregandoPessoas) && processos.length === 0
@@ -202,6 +208,24 @@ export const Processos: React.FC<ProcessosProps> = ({ pessoaIdInicial }) => {
 
   const obterPessoaDoProcesso = (pessoaId: string) => pessoasPorId.get(normalizarIdRelacionamento(pessoaId))
 
+  const pessoasFiltradasModal = useMemo(() => {
+    const textoBusca = normalizarTextoBusca(buscaPessoaModal)
+    const buscaCpf = buscaPessoaModal.replace(/\D/g, '')
+    const temBuscaTexto = textoBusca.length > 0
+    const temBuscaCpf = buscaCpf.length > 0
+
+    if (!temBuscaTexto && !temBuscaCpf) return pessoas
+
+    return pessoas.filter((pessoa) => {
+      const nomeNormalizado = normalizarTextoBusca(pessoa.nome)
+      const cpfNormalizado = pessoa.cpf.replace(/\D/g, '')
+      const correspondeNome = temBuscaTexto && nomeNormalizado.includes(textoBusca)
+      const correspondeCpf = temBuscaCpf && cpfNormalizado.includes(buscaCpf)
+      const pessoaSelecionada = normalizarIdRelacionamento(pessoa.id) === normalizarIdRelacionamento(formData.pessoaId)
+      return correspondeNome || correspondeCpf || pessoaSelecionada
+    })
+  }, [pessoas, buscaPessoaModal, formData.pessoaId])
+
   const processadosFiltrados = useMemo(() => {
     const textoBusca = normalizarTextoBusca(busca)
     const buscaNormalizada = busca.replace(/\D/g, '')
@@ -244,6 +268,8 @@ export const Processos: React.FC<ProcessosProps> = ({ pessoaIdInicial }) => {
     setFormData({ ...FORM_INICIAL, pessoaId: pessoaIdInicial || '' })
     setEditandoId(null)
     setFormErros({})
+    setBuscaPessoaModal('')
+    setIndicePessoaDestacada(0)
     setMostraModal(true)
   }
 
@@ -260,11 +286,98 @@ export const Processos: React.FC<ProcessosProps> = ({ pessoaIdInicial }) => {
     })
     setEditandoId(processo.id)
     setFormErros({})
+    setBuscaPessoaModal('')
+    setIndicePessoaDestacada(0)
     setMostraModal(true)
   }
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
+  const selecionarPessoaNoModal = (pessoaId: string) => {
+    setFormData((atual) => ({ ...atual, pessoaId }))
+    if (formErros.pessoaId) {
+      setFormErros((atual) => ({ ...atual, pessoaId: undefined }))
+    }
+  }
+
+  const lidarTecladoBuscaPessoa = (evento: React.KeyboardEvent<HTMLInputElement>) => {
+    if (evento.key === 'Enter' && pessoasFiltradasModal.length === 0) {
+      evento.preventDefault()
+      return
+    }
+
+    if (pessoasFiltradasModal.length === 0) return
+
+    if (evento.key === 'ArrowDown') {
+      evento.preventDefault()
+      setIndicePessoaDestacada((atual) => (atual + 1) % pessoasFiltradasModal.length)
+      return
+    }
+
+    if (evento.key === 'ArrowUp') {
+      evento.preventDefault()
+      setIndicePessoaDestacada((atual) => (atual - 1 + pessoasFiltradasModal.length) % pessoasFiltradasModal.length)
+      return
+    }
+
+    if (evento.key === 'Enter' && indicePessoaDestacada >= 0) {
+      evento.preventDefault()
+      const pessoa = pessoasFiltradasModal[indicePessoaDestacada]
+      if (pessoa) selecionarPessoaNoModal(pessoa.id)
+    }
+  }
+
+  useEffect(() => {
+    if (!mostraModal) return
+    if (pessoasFiltradasModal.length === 0) {
+      setIndicePessoaDestacada(-1)
+      return
+    }
+
+    const indiceSelecionada = pessoasFiltradasModal.findIndex(
+      (pessoa) => normalizarIdRelacionamento(pessoa.id) === normalizarIdRelacionamento(formData.pessoaId),
+    )
+    setIndicePessoaDestacada(indiceSelecionada >= 0 ? indiceSelecionada : 0)
+  }, [mostraModal, pessoasFiltradasModal, formData.pessoaId])
+
+  useEffect(() => {
+    if (!mostraModal) return
+    window.requestAnimationFrame(() => {
+      inputBuscaPessoaRef.current?.focus()
+    })
+  }, [mostraModal])
+
+  useEffect(() => {
+    if (!mostraModal) return
+    const buscaAtiva = buscaPessoaModal.trim().length > 0
+    if (!buscaAtiva || pessoasFiltradasModal.length !== 1) return
+    const unicaPessoa = pessoasFiltradasModal[0]
+    if (normalizarIdRelacionamento(unicaPessoa.id) !== normalizarIdRelacionamento(formData.pessoaId)) {
+      selecionarPessoaNoModal(unicaPessoa.id)
+    }
+  }, [mostraModal, buscaPessoaModal, pessoasFiltradasModal, formData.pessoaId])
+
+  useEffect(() => {
+    if (!mostraModal) return
+    const aoPressionarTecla = (evento: KeyboardEvent) => {
+      if (evento.key === 'Escape') {
+        if (mostraCriarPessoa) {
+          setMostraCriarPessoa(false)
+        } else {
+          setMostraModal(false)
+        }
+        return
+      }
+
+      if (evento.key === 'Enter' && (evento.ctrlKey || evento.metaKey) && !mostraCriarPessoa) {
+        evento.preventDefault()
+        formProcessoRef.current?.requestSubmit()
+      }
+    }
+
+    window.addEventListener('keydown', aoPressionarTecla)
+    return () => window.removeEventListener('keydown', aoPressionarTecla)
+  }, [mostraModal, mostraCriarPessoa])
+
+  const salvarProcessoFormulario = async (criarOutro = false) => {
     if (salvandoProcesso) return
     if (!formData.tipo) {
       setFormErros({ tipo: 'Selecione o tipo de processo' })
@@ -290,15 +403,36 @@ export const Processos: React.FC<ProcessosProps> = ({ pessoaIdInicial }) => {
         setMostraModal(false)
       } else {
         const novoProcesso = await adicionarProcesso(payload)
-        setMensagem({ tipo: 'success', texto: 'Processo cadastrado com sucesso!' })
-        setMostraModal(false)
-        setDetalhesId(novoProcesso.id)
+        if (criarOutro) {
+          setMensagem({ tipo: 'success', texto: 'Processo cadastrado! Pronto para criar o próximo.' })
+          setFormData((atual) => ({
+            ...FORM_INICIAL,
+            tipo: atual.tipo,
+            status: atual.status,
+            dataAbertura: atual.dataAbertura,
+          }))
+          setBuscaPessoaModal('')
+          setIndicePessoaDestacada(0)
+          setFormErros({})
+          window.requestAnimationFrame(() => {
+            inputBuscaPessoaRef.current?.focus()
+          })
+        } else {
+          setMensagem({ tipo: 'success', texto: 'Processo cadastrado com sucesso!' })
+          setMostraModal(false)
+          setDetalhesId(novoProcesso.id)
+        }
       }
     } catch (error) {
       setMensagem({ tipo: 'error', texto: obterMensagemErro(error, 'Erro ao salvar processo') })
     } finally {
       setSalvandoProcesso(false)
     }
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    await salvarProcessoFormulario(false)
   }
 
   const abrirCredenciais = async (processo: Processo) => {
@@ -787,7 +921,7 @@ export const Processos: React.FC<ProcessosProps> = ({ pessoaIdInicial }) => {
 
       {/* Painel credenciais */}
       {credenciais && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in" role="dialog" aria-modal="true" aria-label="Credenciais Gov.br" onClick={() => setCredenciais(null)}>
+        <div className="fixed inset-0 bg-black/35 backdrop-blur-[1px] z-50 flex items-center justify-center p-4 animate-fade-in" role="dialog" aria-modal="true" aria-label="Credenciais Gov.br" onClick={() => setCredenciais(null)}>
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md animate-slide-up" onClick={(e) => e.stopPropagation()}>
             <div className="bg-gradient-to-r from-zinc-950 via-red-900 to-zinc-900 px-6 py-4 rounded-t-2xl flex items-center justify-between border-b border-red-900/50">
               <h2 className="text-lg font-bold text-white">Credenciais Gov.br</h2>
@@ -939,7 +1073,7 @@ export const Processos: React.FC<ProcessosProps> = ({ pessoaIdInicial }) => {
 
       {/* Modal novo/editar processo */}
       {mostraModal && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-start sm:items-center justify-center p-4 overflow-y-auto animate-fade-in" role="dialog" aria-modal="true" aria-label={editandoId ? 'Editar Processo' : 'Novo Processo'} onClick={() => setMostraModal(false)}>
+        <div className="fixed inset-0 bg-black/35 backdrop-blur-[1px] z-50 flex items-start sm:items-center justify-center p-4 overflow-y-auto animate-fade-in" role="dialog" aria-modal="true" aria-label={editandoId ? 'Editar Processo' : 'Novo Processo'} onClick={() => setMostraModal(false)}>
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg my-4 animate-slide-up" onClick={(e) => e.stopPropagation()}>
             <div className="bg-gradient-to-r from-zinc-950 via-red-950 to-black px-6 py-4 rounded-t-2xl flex items-center justify-between">
               <h2 className="text-lg font-bold text-white">{editandoId ? 'Editar Processo' : 'Novo Processo'}</h2>
@@ -947,30 +1081,62 @@ export const Processos: React.FC<ProcessosProps> = ({ pessoaIdInicial }) => {
                 <X className="w-5 h-5" />
               </button>
             </div>
-            <form onSubmit={handleSubmit} className="p-6 space-y-5">
+            <form ref={formProcessoRef} onSubmit={handleSubmit} className="p-6 space-y-5">
               {/* Seção: Identificação */}
               <fieldset className="space-y-4">
                 <legend className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Identificação</legend>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">👤 Pessoa *</label>
-                <select
-                  value={formData.pessoaId}
-                  onChange={(e) => setFormData({ ...formData, pessoaId: e.target.value })}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-500"
-                  required
-                >
-                  <option value="">Selecione a pessoa</option>
-                  {pessoas.map((p) => (
-                    <option key={p.id} value={p.id}>{p.nome} — {p.cpf}</option>
-                  ))}
-                </select>
+                <div className="relative mb-2">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <input
+                    ref={inputBuscaPessoaRef}
+                    type="text"
+                    value={buscaPessoaModal}
+                    onChange={(e) => setBuscaPessoaModal(e.target.value)}
+                    onKeyDown={lidarTecladoBuscaPessoa}
+                    placeholder="Pesquisar pessoa por nome ou CPF"
+                    className="w-full border border-gray-300 rounded-lg pl-10 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-500"
+                  />
+                </div>
+                <div className="rounded-xl border border-gray-200 bg-gray-50/70 p-2">
+                  <p className="text-xs font-medium text-gray-500 mb-2">
+                    {formData.pessoaId
+                      ? `Pessoa selecionada: ${obterPessoaDoProcesso(formData.pessoaId)?.nome || 'não encontrada'}`
+                      : 'Selecione uma pessoa na lista abaixo'}
+                  </p>
+                  <div className="max-h-52 overflow-y-auto rounded-lg border border-gray-200 bg-white" role="listbox" aria-label="Pessoas disponíveis">
+                    {pessoasFiltradasModal.map((p, indice) => {
+                      const selecionada = normalizarIdRelacionamento(p.id) === normalizarIdRelacionamento(formData.pessoaId)
+                      const destacada = indice === indicePessoaDestacada
+                      return (
+                        <button
+                          key={p.id}
+                          type="button"
+                          onClick={() => selecionarPessoaNoModal(p.id)}
+                          onMouseEnter={() => setIndicePessoaDestacada(indice)}
+                          className={`w-full flex items-center justify-between text-left px-3 py-2 text-sm border-b border-gray-100 last:border-b-0 transition-colors ${destacada ? 'bg-red-50' : 'hover:bg-gray-50'} ${selecionada ? 'text-red-700 font-medium' : 'text-gray-700'}`}
+                          aria-selected={selecionada}
+                        >
+                          <span className="truncate pr-3">{p.nome} - {p.cpf}</span>
+                          {selecionada && <Check className="w-4 h-4 shrink-0" />}
+                        </button>
+                      )
+                    })}
+                  </div>
+                  <p className="text-[11px] text-gray-500 mt-2">Dica: use setas para navegar e Enter para selecionar.</p>
+                </div>
+                {buscaPessoaModal && pessoasFiltradasModal.length === 0 && (
+                  <p className="text-xs text-amber-700 mt-2">Nenhuma pessoa encontrada para essa busca.</p>
+                )}
                 {formErros.pessoaId && <p className="text-xs text-red-600 mt-1">{formErros.pessoaId}</p>}
                 <button
                   type="button"
                   onClick={() => setMostraCriarPessoa(true)}
-                  className="text-xs text-red-600 hover:text-red-700 mt-2 underline"
+                  className="mt-3 w-full flex items-center justify-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-700 hover:bg-red-100 transition-colors"
                 >
-                  ou Criar nova pessoa
+                  <UserPlus className="w-4 h-4" />
+                  Criar nova pessoa rapidamente
                 </button>
               </div>
               <div>
@@ -1064,8 +1230,20 @@ export const Processos: React.FC<ProcessosProps> = ({ pessoaIdInicial }) => {
               </fieldset>
               <div className="flex gap-3 pt-2">
                 <Button type="button" variant="secondary" onClick={() => setMostraModal(false)} className="flex-1">Cancelar</Button>
+                {!editandoId && (
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    className="flex-1"
+                    disabled={salvandoProcesso}
+                    onClick={() => void salvarProcessoFormulario(true)}
+                  >
+                    {salvandoProcesso ? 'Salvando...' : 'Salvar e criar outro'}
+                  </Button>
+                )}
                 <Button type="submit" className="flex-1" disabled={salvandoProcesso}>{salvandoProcesso ? 'Salvando...' : editandoId ? 'Salvar' : 'Cadastrar'}</Button>
               </div>
+              <p className="text-[11px] text-gray-500">Atalhos: Ctrl+Enter para salvar e Esc para fechar.</p>
             </form>
           </div>
         </div>
@@ -1073,7 +1251,7 @@ export const Processos: React.FC<ProcessosProps> = ({ pessoaIdInicial }) => {
 
       {/* Modal criar nova pessoa */}
       {mostraCriarPessoa && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[60] flex items-start sm:items-center justify-center p-4 overflow-y-auto animate-fade-in" role="dialog" aria-modal="true" aria-label="Nova Pessoa" onClick={() => setMostraCriarPessoa(false)}>
+        <div className="fixed inset-0 bg-black/35 backdrop-blur-[1px] z-[60] flex items-start sm:items-center justify-center p-4 overflow-y-auto animate-fade-in" role="dialog" aria-modal="true" aria-label="Nova Pessoa" onClick={() => setMostraCriarPessoa(false)}>
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg my-4 animate-slide-up" onClick={(e) => e.stopPropagation()}>
             <div className="bg-gradient-to-r from-zinc-950 via-red-950 to-black px-6 py-4 rounded-t-2xl flex items-center justify-between">
               <h2 className="text-lg font-bold text-white">Nova Pessoa</h2>
