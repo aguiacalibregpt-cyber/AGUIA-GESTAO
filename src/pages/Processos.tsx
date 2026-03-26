@@ -1079,19 +1079,20 @@ export const Processos: React.FC<ProcessosProps> = ({ pessoaIdInicial }) => {
                     </p>
                   </div>
 
-                  <div>
-                    <label className="block text-xs font-medium text-gray-700 mb-1.5 uppercase tracking-wide">Observações</label>
-                    <textarea
-                      value={credenciais.observacoes}
-                      onChange={(e) => setCredenciais((c) => c ? { ...c, observacoes: e.target.value } : c)}
-                      onBlur={() => void atualizarCampoCredenciais({ observacoes: credenciais.observacoes }, 'Erro ao atualizar observações')}
-                      placeholder="Adicione observações sobre este processo..."
-                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-600 resize-none transition-colors bg-white"
-                      rows={4}
-                    />
-                  </div>
                 </section>
               </div>
+
+              <section className="rounded-xl border border-gray-200 bg-white p-3 sm:p-4">
+                <label className="block text-xs font-medium text-gray-700 mb-1.5 uppercase tracking-wide">Observações</label>
+                <textarea
+                  value={credenciais.observacoes}
+                  onChange={(e) => setCredenciais((c) => c ? { ...c, observacoes: e.target.value } : c)}
+                  onBlur={() => void atualizarCampoCredenciais({ observacoes: credenciais.observacoes }, 'Erro ao atualizar observações')}
+                  placeholder="Adicione observações sobre este processo..."
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-600 resize-none transition-colors bg-white"
+                  rows={5}
+                />
+              </section>
 
               <p className="text-xs text-gray-400 text-center pt-2 border-t border-gray-200">O acesso foi registrado no log de auditoria</p>
             </div>
