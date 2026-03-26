@@ -949,10 +949,11 @@ export const Processos: React.FC<ProcessosProps> = ({ pessoaIdInicial }) => {
                       <span className="font-mono text-sm flex-1 bg-gray-50 px-3 py-2 rounded-lg border border-gray-200">{credenciais.cpf}</span>
                       <button
                         onClick={() => void copiarCredencial(credenciais.cpf!, 'cpf')}
-                        className="h-9 px-3 inline-flex items-center gap-1.5 border border-gray-300 rounded-lg text-xs font-medium text-gray-700 hover:bg-gray-50"
+                        className="h-8 w-8 inline-flex items-center justify-center border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
+                        title="Copiar CPF"
+                        aria-label="Copiar CPF"
                       >
-                        <Copy className="w-3.5 h-3.5" />
-                        Copiar
+                        <Copy className="w-3 h-3" />
                       </button>
                     </div>
                   </div>
@@ -1006,9 +1007,20 @@ export const Processos: React.FC<ProcessosProps> = ({ pessoaIdInicial }) => {
                       </div>
                     ) : (
                       <div className="space-y-2">
-                        <span className="block font-mono text-sm bg-gray-50 px-3 py-2 rounded-lg border border-gray-200">
-                          {credenciais.senhaGov ? (credenciais.mostrarSenha ? credenciais.senhaGov : '••••••••') : 'Sem senha cadastrada'}
-                        </span>
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono text-sm flex-1 bg-gray-50 px-3 py-2 rounded-lg border border-gray-200">
+                            {credenciais.senhaGov ? (credenciais.mostrarSenha ? credenciais.senhaGov : '••••••••') : 'Sem senha cadastrada'}
+                          </span>
+                          <button
+                            onClick={() => credenciais.senhaGov && void copiarCredencial(credenciais.senhaGov, 'senha')}
+                            className="h-8 w-8 inline-flex items-center justify-center border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
+                            disabled={!credenciais.senhaGov}
+                            title={credenciais.senhaGov ? 'Copiar senha' : 'Sem senha para copiar'}
+                            aria-label="Copiar senha"
+                          >
+                            <Copy className="w-3 h-3" />
+                          </button>
+                        </div>
                         <div className="flex items-center gap-2">
                           <button
                             onClick={() => setCredenciais((c) => c ? { ...c, mostrarSenha: !c.mostrarSenha } : c)}
@@ -1018,15 +1030,6 @@ export const Processos: React.FC<ProcessosProps> = ({ pessoaIdInicial }) => {
                           >
                             {credenciais.mostrarSenha ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
                             {credenciais.mostrarSenha ? 'Ocultar' : 'Mostrar'}
-                          </button>
-                          <button
-                            onClick={() => credenciais.senhaGov && void copiarCredencial(credenciais.senhaGov, 'senha')}
-                            className="h-9 px-3 inline-flex items-center gap-1.5 border border-gray-300 rounded-lg text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
-                            disabled={!credenciais.senhaGov}
-                            title={credenciais.senhaGov ? 'Copiar senha' : 'Sem senha para copiar'}
-                          >
-                            <Copy className="w-3.5 h-3.5" />
-                            Copiar
                           </button>
                         </div>
                       </div>
