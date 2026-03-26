@@ -45,6 +45,36 @@ const app = express()
 const RATE_LIMIT_MAX = Number(process.env.AGUIA_RATE_LIMIT_MAX || 300)
 const RATE_LIMIT_WINDOW_MS = Number(process.env.AGUIA_RATE_LIMIT_WINDOW_MS || 60_000)
 const rateBucket = new Map()
+const ACTIVE_CONNECTION_TTL_MS = Number(process.env.AGUIA_ACTIVE_CONNECTION_TTL_MS || 5 * 60_000)
+const activeConnections = new Map()
+
+function normalizarIp(valor) {
+  if (!valor) return 'desconhecido'
+  const base = String(valor).split(',')[0].trim()
+  if (base.startsWith('::ffff:')) return base.slice(7)
+  return base
+}
+
+function extrairIpCliente(req) {
+  const forwarded = req.headers['x-forwarded-for']
+  if (typeof forwarded === 'string' && forwarded.trim()) return normalizarIp(forwarded)
+  if (Array.isArray(forwarded) && forwarded.length > 0) return normalizarIp(forwarded[0])
+  return normalizarIp(req.ip || req.socket?.remoteAddress)
+}
+
+function registrarConexao(req, _res, next) {
+  const ip = extrairIpCliente(req)
+  const agora = Date.now()
+  const atual = activeConnections.get(ip)
+  activeConnections.set(ip, {
+    ip,
+    ultimoAcessoMs: agora,
+    totalRequisicoes: (atual?.totalRequisicoes || 0) + 1,
+    ultimoPath: req.path,
+    userAgent: String(req.headers['user-agent'] || ''),
+  })
+  next()
+}
 
 function originPermitida(origin) {
   if (!origin) return true
@@ -108,6 +138,11 @@ setInterval(() => {
   const agora = Date.now()
   for (const [chave, bucket] of rateBucket) {
     if (agora >= bucket.resetAt) rateBucket.delete(chave)
+  }
+  for (const [ip, conexao] of activeConnections) {
+    if (agora - conexao.ultimoAcessoMs > ACTIVE_CONNECTION_TTL_MS) {
+      activeConnections.delete(ip)
+    }
   }
 }, 60_000)
 
@@ -216,6 +251,7 @@ function authMiddleware(req, res, next) {
 }
 
 app.use(authMiddleware)
+app.use('/api', registrarConexao)
 
 function ensureDataFile() {
   if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true })
@@ -350,6 +386,24 @@ app.get('/api/health', (_, res) => {
     authRequired: Boolean(API_TOKEN),
     corsMode: ALLOWED_ORIGINS.length > 0 ? 'explicit-origins' : 'lan-only-default',
     securityMaterialEndpoint: API_TOKEN ? 'enabled' : 'disabled',
+  })
+})
+
+app.get('/api/conexoes-ativas', (_, res) => {
+  const conexoes = Array.from(activeConnections.values())
+    .sort((a, b) => b.ultimoAcessoMs - a.ultimoAcessoMs)
+    .map((item) => ({
+      ip: item.ip,
+      ultimaAtividade: new Date(item.ultimoAcessoMs).toISOString(),
+      totalRequisicoes: item.totalRequisicoes,
+      ultimoPath: item.ultimoPath,
+      userAgent: item.userAgent,
+    }))
+
+  return res.json({
+    totalAtivas: conexoes.length,
+    ttlSegundos: Math.floor(ACTIVE_CONNECTION_TTL_MS / 1000),
+    conexoes,
   })
 })
 

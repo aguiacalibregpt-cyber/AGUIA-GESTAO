@@ -33,7 +33,6 @@ import {
   XCircle,
   CalendarDays,
   UserPlus,
-  Check,
 } from 'lucide-react'
 import { registrarAcessoSenhaGov } from '../lib/crypto'
 import { DetalheProcesso } from './DetalheProcesso'
@@ -295,6 +294,9 @@ export const Processos: React.FC<ProcessosProps> = ({ pessoaIdInicial }) => {
     }
   }
 
+  const processoEditando = editandoId ? processos.find((processo) => processo.id === editandoId) : undefined
+  const pessoaEditando = processoEditando ? obterPessoaDoProcesso(processoEditando.pessoaId) : undefined
+
   useEffect(() => {
     if (!mostraModal) return
     window.requestAnimationFrame(() => {
@@ -481,6 +483,18 @@ export const Processos: React.FC<ProcessosProps> = ({ pessoaIdInicial }) => {
       setNovaDataPrazo('')
     } catch (error) {
       setMensagem({ tipo: 'error', texto: obterMensagemErro(error, 'Erro ao atualizar data') })
+    }
+  }
+
+  const limparDataPrazo = async (processoId: string) => {
+    if (!window.confirm('Deseja realmente limpar a data prazo deste processo?')) return
+    try {
+      await atualizarProcesso(processoId, { dataPrazo: undefined })
+      setMensagem({ tipo: 'success', texto: 'Data prazo removida com sucesso!' })
+      setEditandoDataPrazoId(null)
+      setNovaDataPrazo('')
+    } catch (error) {
+      setMensagem({ tipo: 'error', texto: obterMensagemErro(error, 'Erro ao limpar data prazo') })
     }
   }
 
@@ -811,6 +825,13 @@ export const Processos: React.FC<ProcessosProps> = ({ pessoaIdInicial }) => {
                                 ✓
                               </button>
                               <button
+                                type="button"
+                                onClick={() => void limparDataPrazo(processo.id)}
+                                className="px-2 py-1 text-xs font-medium bg-amber-100 text-amber-800 rounded hover:bg-amber-200"
+                              >
+                                Limpar
+                              </button>
+                              <button
                                 onClick={() => {
                                   setEditandoDataPrazoId(null)
                                   setNovaDataPrazo('')
@@ -1042,62 +1063,70 @@ export const Processos: React.FC<ProcessosProps> = ({ pessoaIdInicial }) => {
               <fieldset className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <legend className="md:col-span-2 text-xs font-semibold text-gray-400 uppercase tracking-wider">Identificação</legend>
               <div className="md:col-span-2">
-                <label className="block text-sm font-medium text-gray-700 mb-1">👤 Pessoa *</label>
-                <div className="relative mb-2">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                  <input
-                    ref={inputBuscaPessoaRef}
-                    type="text"
-                    value={buscaPessoaModal}
-                    onChange={(e) => setBuscaPessoaModal(e.target.value)}
-                    placeholder="Pesquisar pessoa por nome ou CPF"
-                    className="w-full border border-gray-300 rounded-lg pl-10 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-500"
-                  />
-                </div>
-                <div className="rounded-xl border border-gray-200 bg-gray-50/70 p-2">
-                  <p className="text-xs font-medium text-gray-500 mb-2">
-                    {formData.pessoaId
-                      ? `Pessoa selecionada: ${obterPessoaDoProcesso(formData.pessoaId)?.nome || 'não encontrada'}`
-                      : 'Selecione uma pessoa na lista abaixo'}
-                  </p>
-                  {!buscaPessoaModal.trim() ? (
-                    <p className="text-xs text-gray-500 bg-white border border-dashed border-gray-300 rounded-lg px-3 py-2">
-                      Comece digitando nome ou CPF para listar pessoas.
-                    </p>
-                  ) : (
-                    <>
-                      <div className="max-h-40 overflow-y-auto rounded-lg border border-gray-200 bg-white" role="listbox" aria-label="Pessoas disponíveis">
-                        {pessoasFiltradasModal.map((p, indice) => {
-                          const selecionada = normalizarIdRelacionamento(p.id) === normalizarIdRelacionamento(formData.pessoaId)
-                          return (
-                            <button
-                              key={p.id}
-                              type="button"
-                              onClick={() => selecionarPessoaNoModal(p.id)}
-                              className={`w-full flex items-center justify-between text-left px-3 py-2 text-sm border-b border-gray-100 last:border-b-0 transition-colors hover:bg-gray-50 ${selecionada ? 'bg-red-50 text-red-700 font-medium' : 'text-gray-700'}`}
-                              aria-selected={selecionada}
-                            >
-                              <span className="truncate pr-3">{p.nome} - {p.cpf}</span>
-                              {selecionada && <Check className="w-4 h-4 shrink-0" />}
-                            </button>
-                          )
-                        })}
-                      </div>
-                    </>
-                  )}
-                </div>
-                {buscaPessoaModal && pessoasFiltradasModal.length === 0 && (
-                  <p className="text-xs text-amber-700 mt-2">Nenhuma pessoa encontrada para essa busca.</p>
+                {editandoId ? (
+                  <div className="rounded-xl border border-gray-200 bg-gray-50/70 p-3 grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <div>
+                      <p className="text-xs font-medium text-gray-500">Nome</p>
+                      <p className="text-sm font-semibold text-gray-800">{pessoaEditando?.nome || 'Pessoa não encontrada'}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs font-medium text-gray-500">Tipo de processo</p>
+                      <p className="text-sm text-gray-800">{formData.tipo ? nomesTipoProcesso[formData.tipo as TipoProcesso] : '-'}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs font-medium text-gray-500">Data de início</p>
+                      <p className="text-sm text-gray-800">{formData.dataAbertura ? formatarData(converterDataStringParaDate(formData.dataAbertura)) : '-'}</p>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">👤 Pessoa *</label>
+                    <div className="relative mb-2">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                      <input
+                        ref={inputBuscaPessoaRef}
+                        type="text"
+                        value={buscaPessoaModal}
+                        onChange={(e) => setBuscaPessoaModal(e.target.value)}
+                        placeholder="Pesquisar pessoa por nome ou CPF"
+                        className="w-full border border-gray-300 rounded-lg pl-10 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-500"
+                      />
+                    </div>
+                    <div className="rounded-xl border border-gray-200 bg-gray-50/70 p-2 space-y-2">
+                      {formData.pessoaId && (
+                        <p className="text-xs font-medium text-gray-600">Pessoa selecionada: {obterPessoaDoProcesso(formData.pessoaId)?.nome || 'não encontrada'}</p>
+                      )}
+                      {!buscaPessoaModal.trim() ? (
+                        <p className="text-xs text-gray-500 bg-white border border-dashed border-gray-300 rounded-lg px-3 py-2">
+                          Comece digitando nome ou CPF para listar pessoas.
+                        </p>
+                      ) : (
+                        <select
+                          value={formData.pessoaId}
+                          onChange={(e) => selecionarPessoaNoModal(e.target.value)}
+                          className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-500 bg-white"
+                        >
+                          <option value="">Selecione a pessoa encontrada</option>
+                          {pessoasFiltradasModal.map((p) => (
+                            <option key={p.id} value={p.id}>{p.nome} - {p.cpf}</option>
+                          ))}
+                        </select>
+                      )}
+                    </div>
+                    {buscaPessoaModal && pessoasFiltradasModal.length === 0 && (
+                      <p className="text-xs text-amber-700 mt-2">Nenhuma pessoa encontrada para essa busca.</p>
+                    )}
+                    {formErros.pessoaId && <p className="text-xs text-red-600 mt-1">{formErros.pessoaId}</p>}
+                    <button
+                      type="button"
+                      onClick={() => setMostraCriarPessoa(true)}
+                      className="mt-3 w-full flex items-center justify-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-700 hover:bg-red-100 transition-colors"
+                    >
+                      <UserPlus className="w-4 h-4" />
+                      Criar nova pessoa rapidamente
+                    </button>
+                  </>
                 )}
-                {formErros.pessoaId && <p className="text-xs text-red-600 mt-1">{formErros.pessoaId}</p>}
-                <button
-                  type="button"
-                  onClick={() => setMostraCriarPessoa(true)}
-                  className="mt-3 w-full flex items-center justify-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-700 hover:bg-red-100 transition-colors"
-                >
-                  <UserPlus className="w-4 h-4" />
-                  Criar nova pessoa rapidamente
-                </button>
               </div>
               <div className="md:col-span-1">
                 <label className="block text-sm font-medium text-gray-700 mb-1">📋 Tipo de Processo *</label>

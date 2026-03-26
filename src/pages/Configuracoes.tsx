@@ -25,6 +25,8 @@ import {
   AlertTriangle,
   CheckCircle,
   FileText,
+  RefreshCw,
+  Activity,
 } from 'lucide-react'
 
 // ─── Tipos de backup ──────────────────────────────────────────────────────────
@@ -36,6 +38,14 @@ interface BackupData {
   processos: Processo[]
   documentosProcesso: DocumentoProcesso[]
   configuracoes: Configuracao[]
+}
+
+interface ConexaoAtiva {
+  ip: string
+  ultimaAtividade: string
+  totalRequisicoes: number
+  ultimoPath: string
+  userAgent?: string
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -74,8 +84,31 @@ export const Configuracoes: React.FC = () => {
   const [pinConfigurado, setPinConfigurado] = useState(false)
   const [tokenApi, setTokenApi] = useState('')
   const [incluirSenhaNoRelatorio, setIncluirSenhaNoRelatorio] = useState(false)
+  const [conexoesAtivas, setConexoesAtivas] = useState<ConexaoAtiva[]>([])
+  const [ttlConexoesSegundos, setTtlConexoesSegundos] = useState(300)
+  const [carregandoConexoes, setCarregandoConexoes] = useState(false)
+  const [ultimaAtualizacaoConexoes, setUltimaAtualizacaoConexoes] = useState<Date | null>(null)
   const inputArquivoRef = useRef<HTMLInputElement>(null)
+  const conexoesJaCarregadasRef = useRef(false)
   const [carregandoInicial, setCarregandoInicial] = useState(true)
+
+  const carregarConexoesAtivas = useCallback(async () => {
+    if (!conexoesJaCarregadasRef.current) setCarregandoConexoes(true)
+    try {
+      const resposta = await api.get<{ totalAtivas: number; ttlSegundos: number; conexoes: ConexaoAtiva[] }>('/conexoes-ativas')
+      setConexoesAtivas(resposta?.conexoes || [])
+      if (typeof resposta?.ttlSegundos === 'number' && resposta.ttlSegundos > 0) {
+        setTtlConexoesSegundos(resposta.ttlSegundos)
+      }
+      setUltimaAtualizacaoConexoes(new Date())
+    } catch {
+      // Em ambientes sem servidor/endpoint, não bloqueia a tela de configurações.
+      setConexoesAtivas([])
+    } finally {
+      conexoesJaCarregadasRef.current = true
+      setCarregandoConexoes(false)
+    }
+  }, [])
 
   const criarHistorico = (params: {
     origem: BackupHistorico['origem']
@@ -130,6 +163,14 @@ export const Configuracoes: React.FC = () => {
   useEffect(() => {
     void carregarDadosIniciais()
   }, [carregarDadosIniciais])
+
+  useEffect(() => {
+    void carregarConexoesAtivas()
+    const timer = window.setInterval(() => {
+      void carregarConexoesAtivas()
+    }, 5000)
+    return () => window.clearInterval(timer)
+  }, [carregarConexoesAtivas])
 
   const salvarNomeEmpresa = async () => {
     await salvarConfiguracao('nomeEmpresa', nomeEmpresa.trim())
@@ -460,6 +501,16 @@ export const Configuracoes: React.FC = () => {
     ? Math.floor((Date.now() - new Date(ultimoBackup).getTime()) / 86_400_000)
     : null
 
+  const descreverAtividadeRecente = (ultimaAtividadeIso: string) => {
+    const ultima = new Date(ultimaAtividadeIso).getTime()
+    const diffSeg = Math.max(0, Math.floor((Date.now() - ultima) / 1000))
+    if (diffSeg < 60) return `${diffSeg}s atrás`
+    const minutos = Math.floor(diffSeg / 60)
+    if (minutos < 60) return `${minutos}min atrás`
+    const horas = Math.floor(minutos / 60)
+    return `${horas}h atrás`
+  }
+
   return (
     <div className="space-y-6">
       {/* Cabeçalho */}
@@ -560,6 +611,64 @@ export const Configuracoes: React.FC = () => {
             Salvar segurança
           </Button>
         </div>
+      </div>}
+
+      {/* Conexões ativas */}
+      {!carregandoInicial && <div className="bg-white rounded-2xl shadow-sm ring-1 ring-black/5 p-5">
+        <div className="flex flex-wrap items-start justify-between gap-3 mb-4">
+          <div>
+            <h2 className="font-semibold text-gray-800 mb-1 flex items-center gap-2">
+              <Activity className="w-5 h-5 text-gray-500" /> Dispositivos Conectados na Web
+            </h2>
+            <p className="text-sm text-gray-500">
+              Lista de atividade recente na API. Expira após {Math.floor(ttlConexoesSegundos / 60)} min sem tráfego.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => void carregarConexoesAtivas()}
+            className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-gray-300 text-sm text-gray-700 hover:bg-gray-50"
+          >
+            <RefreshCw className="w-4 h-4" /> Atualizar
+          </button>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2 mb-4">
+          <span className="text-xs font-medium px-2 py-1 rounded-full bg-green-100 text-green-800">
+            {conexoesAtivas.length} ativo(s)
+          </span>
+          <span className="text-xs font-medium px-2 py-1 rounded-full bg-gray-100 text-gray-700">
+            TTL {Math.floor(ttlConexoesSegundos / 60)} min
+          </span>
+          {ultimaAtualizacaoConexoes && (
+            <span className="text-xs text-gray-500">
+              Atualizado às {ultimaAtualizacaoConexoes.toLocaleTimeString('pt-BR')}
+            </span>
+          )}
+        </div>
+
+        {carregandoConexoes ? (
+          <div className="space-y-2">
+            <Skeleton className="h-16 w-full" />
+            <Skeleton className="h-16 w-full" />
+          </div>
+        ) : conexoesAtivas.length === 0 ? (
+          <p className="text-sm text-gray-500">Nenhum cliente ativo no momento.</p>
+        ) : (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+            {conexoesAtivas.map((conexao) => (
+              <div key={conexao.ip} className="rounded-xl border border-gray-200 bg-gradient-to-r from-white to-gray-50 px-4 py-3 text-sm">
+                <div className="flex flex-wrap items-center gap-2 mb-1">
+                  <span className="font-semibold text-gray-800">IP {conexao.ip}</span>
+                  <span className="text-xs px-2 py-0.5 rounded-full bg-gray-200 text-gray-700">{conexao.totalRequisicoes} req</span>
+                  <span className="text-xs text-gray-500">{descreverAtividadeRecente(conexao.ultimaAtividade)}</span>
+                </div>
+                <p className="text-xs text-gray-600">Última rota: {conexao.ultimoPath}</p>
+                {conexao.userAgent && <p className="text-xs text-gray-500 truncate mt-1">{conexao.userAgent}</p>}
+              </div>
+            ))}
+          </div>
+        )}
       </div>}
 
       {/* Backup */}
