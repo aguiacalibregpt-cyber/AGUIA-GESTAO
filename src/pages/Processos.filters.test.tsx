@@ -131,6 +131,16 @@ describe('Processos filtros', () => {
     expect(screen.queryByText('Selecione o tipo de processo')).toBeNull()
   })
 
+  test('modal novo processo nao lista pessoas antes de iniciar busca', async () => {
+    const user = userEvent.setup()
+    render(<Processos />)
+
+    await user.click(screen.getByRole('button', { name: 'Novo Processo' }))
+
+    expect(screen.getByText('Comece digitando nome ou CPF para listar pessoas.')).toBeTruthy()
+    expect(screen.queryByRole('button', { name: /Bruno Silva - 222\.222\.222-22/i })).toBeNull()
+  })
+
   test('Ctrl+Enter no modal salva quando formulario esta valido', async () => {
     const user = userEvent.setup()
     render(<Processos />)

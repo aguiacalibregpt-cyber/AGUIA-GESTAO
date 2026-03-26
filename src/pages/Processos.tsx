@@ -214,7 +214,7 @@ export const Processos: React.FC<ProcessosProps> = ({ pessoaIdInicial }) => {
     const temBuscaTexto = textoBusca.length > 0
     const temBuscaCpf = buscaCpf.length > 0
 
-    if (!temBuscaTexto && !temBuscaCpf) return pessoas
+    if (!temBuscaTexto && !temBuscaCpf) return []
 
     return pessoas.filter((pessoa) => {
       const nomeNormalizado = normalizarTextoBusca(pessoa.nome)
@@ -1074,18 +1074,18 @@ export const Processos: React.FC<ProcessosProps> = ({ pessoaIdInicial }) => {
       {/* Modal novo/editar processo */}
       {mostraModal && (
         <div className="fixed inset-0 bg-black/35 backdrop-blur-[1px] z-50 flex items-start sm:items-center justify-center p-4 overflow-y-auto animate-fade-in" role="dialog" aria-modal="true" aria-label={editandoId ? 'Editar Processo' : 'Novo Processo'} onClick={() => setMostraModal(false)}>
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg my-4 animate-slide-up" onClick={(e) => e.stopPropagation()}>
-            <div className="bg-gradient-to-r from-zinc-950 via-red-950 to-black px-6 py-4 rounded-t-2xl flex items-center justify-between">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl my-4 animate-slide-up" onClick={(e) => e.stopPropagation()}>
+            <div className="bg-gradient-to-r from-zinc-950 via-red-950 to-black px-5 py-3 rounded-t-2xl flex items-center justify-between">
               <h2 className="text-lg font-bold text-white">{editandoId ? 'Editar Processo' : 'Novo Processo'}</h2>
               <button onClick={() => setMostraModal(false)} className="text-white/70 hover:text-white" aria-label="Fechar">
                 <X className="w-5 h-5" />
               </button>
             </div>
-            <form ref={formProcessoRef} onSubmit={handleSubmit} className="p-6 space-y-5">
+            <form ref={formProcessoRef} onSubmit={handleSubmit} className="p-4 sm:p-5 space-y-4">
               {/* Seção: Identificação */}
-              <fieldset className="space-y-4">
-                <legend className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Identificação</legend>
-              <div>
+              <fieldset className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <legend className="md:col-span-2 text-xs font-semibold text-gray-400 uppercase tracking-wider">Identificação</legend>
+              <div className="md:col-span-2">
                 <label className="block text-sm font-medium text-gray-700 mb-1">👤 Pessoa *</label>
                 <div className="relative mb-2">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
@@ -1105,26 +1105,34 @@ export const Processos: React.FC<ProcessosProps> = ({ pessoaIdInicial }) => {
                       ? `Pessoa selecionada: ${obterPessoaDoProcesso(formData.pessoaId)?.nome || 'não encontrada'}`
                       : 'Selecione uma pessoa na lista abaixo'}
                   </p>
-                  <div className="max-h-52 overflow-y-auto rounded-lg border border-gray-200 bg-white" role="listbox" aria-label="Pessoas disponíveis">
-                    {pessoasFiltradasModal.map((p, indice) => {
-                      const selecionada = normalizarIdRelacionamento(p.id) === normalizarIdRelacionamento(formData.pessoaId)
-                      const destacada = indice === indicePessoaDestacada
-                      return (
-                        <button
-                          key={p.id}
-                          type="button"
-                          onClick={() => selecionarPessoaNoModal(p.id)}
-                          onMouseEnter={() => setIndicePessoaDestacada(indice)}
-                          className={`w-full flex items-center justify-between text-left px-3 py-2 text-sm border-b border-gray-100 last:border-b-0 transition-colors ${destacada ? 'bg-red-50' : 'hover:bg-gray-50'} ${selecionada ? 'text-red-700 font-medium' : 'text-gray-700'}`}
-                          aria-selected={selecionada}
-                        >
-                          <span className="truncate pr-3">{p.nome} - {p.cpf}</span>
-                          {selecionada && <Check className="w-4 h-4 shrink-0" />}
-                        </button>
-                      )
-                    })}
-                  </div>
-                  <p className="text-[11px] text-gray-500 mt-2">Dica: use setas para navegar e Enter para selecionar.</p>
+                  {!buscaPessoaModal.trim() ? (
+                    <p className="text-xs text-gray-500 bg-white border border-dashed border-gray-300 rounded-lg px-3 py-2">
+                      Comece digitando nome ou CPF para listar pessoas.
+                    </p>
+                  ) : (
+                    <>
+                      <div className="max-h-40 overflow-y-auto rounded-lg border border-gray-200 bg-white" role="listbox" aria-label="Pessoas disponíveis">
+                        {pessoasFiltradasModal.map((p, indice) => {
+                          const selecionada = normalizarIdRelacionamento(p.id) === normalizarIdRelacionamento(formData.pessoaId)
+                          const destacada = indice === indicePessoaDestacada
+                          return (
+                            <button
+                              key={p.id}
+                              type="button"
+                              onClick={() => selecionarPessoaNoModal(p.id)}
+                              onMouseEnter={() => setIndicePessoaDestacada(indice)}
+                              className={`w-full flex items-center justify-between text-left px-3 py-2 text-sm border-b border-gray-100 last:border-b-0 transition-colors ${destacada ? 'bg-red-50' : 'hover:bg-gray-50'} ${selecionada ? 'text-red-700 font-medium' : 'text-gray-700'}`}
+                              aria-selected={selecionada}
+                            >
+                              <span className="truncate pr-3">{p.nome} - {p.cpf}</span>
+                              {selecionada && <Check className="w-4 h-4 shrink-0" />}
+                            </button>
+                          )
+                        })}
+                      </div>
+                      {pessoasFiltradasModal.length > 0 && <p className="text-[11px] text-gray-500 mt-2">Dica: use setas para navegar e Enter para selecionar.</p>}
+                    </>
+                  )}
                 </div>
                 {buscaPessoaModal && pessoasFiltradasModal.length === 0 && (
                   <p className="text-xs text-amber-700 mt-2">Nenhuma pessoa encontrada para essa busca.</p>
@@ -1156,15 +1164,17 @@ export const Processos: React.FC<ProcessosProps> = ({ pessoaIdInicial }) => {
               </div>
               </fieldset>
               {/* Seção: Detalhes */}
-              <fieldset className="space-y-4 border-t border-gray-100 pt-4">
-                <legend className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Detalhes</legend>
+              <fieldset className="grid grid-cols-1 md:grid-cols-2 gap-3 border-t border-gray-100 pt-3">
+                <legend className="md:col-span-2 text-xs font-semibold text-gray-400 uppercase tracking-wider">Detalhes</legend>
               {editandoId && (
+                <div className="md:col-span-2">
                 <Input
                   label="🔢 Número do Processo"
                   value={formData.numero}
                   onChange={(e) => setFormData({ ...formData, numero: e.target.value })}
                   placeholder="Ex: 2024/12345"
                 />
+                </div>
               )}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">📊 Status</label>
@@ -1178,7 +1188,7 @@ export const Processos: React.FC<ProcessosProps> = ({ pessoaIdInicial }) => {
                   ))}
                 </select>
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-2 gap-3 md:col-span-2">
                 <Input
                   label="📅 Data de Abertura *"
                   type="date"
@@ -1211,24 +1221,28 @@ export const Processos: React.FC<ProcessosProps> = ({ pessoaIdInicial }) => {
               </div>
               </fieldset>
               {/* Seção: Informações complementares */}
-              <fieldset className="space-y-4 border-t border-gray-100 pt-4">
-                <legend className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Informações complementares</legend>
+              <fieldset className="grid grid-cols-1 md:grid-cols-2 gap-3 border-t border-gray-100 pt-3">
+                <legend className="md:col-span-2 text-xs font-semibold text-gray-400 uppercase tracking-wider">Informações complementares</legend>
               {editandoId && (
+                <div className="md:col-span-2">
                 <Input
                   label="📝 Descrição"
                   value={formData.descricao}
                   onChange={(e) => setFormData({ ...formData, descricao: e.target.value })}
                   placeholder="Descrição opcional"
                 />
+                </div>
               )}
+              <div className="md:col-span-2">
               <Input
                 label="🗒️ Observações"
                 value={formData.observacoes}
                 onChange={(e) => setFormData({ ...formData, observacoes: e.target.value })}
                 placeholder="Observações internas"
               />
+              </div>
               </fieldset>
-              <div className="flex gap-3 pt-2">
+              <div className="flex flex-wrap sm:flex-nowrap gap-2 pt-1">
                 <Button type="button" variant="secondary" onClick={() => setMostraModal(false)} className="flex-1">Cancelar</Button>
                 {!editandoId && (
                   <Button
