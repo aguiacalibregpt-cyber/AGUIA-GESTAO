@@ -1137,9 +1137,6 @@ export const Processos: React.FC<ProcessosProps> = ({ pessoaIdInicial }) => {
                       )}
                     </div>
                     <div className="rounded-xl border border-gray-200 bg-gray-50/70 p-2 space-y-2">
-                      {formData.pessoaId && (
-                        <p className="text-xs font-medium text-gray-600">Pessoa selecionada: {obterPessoaDoProcesso(formData.pessoaId)?.nome || 'não encontrada'}</p>
-                      )}
                       {!buscaPessoaModal.trim() ? (
                         <p className="text-xs text-gray-500 bg-white border border-dashed border-gray-300 rounded-lg px-3 py-2">
                           Comece digitando nome ou CPF para listar pessoas.
