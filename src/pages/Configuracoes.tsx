@@ -50,8 +50,15 @@ interface ConexaoAtiva {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 const calcularChecksum = async (dados: string): Promise<string> => {
-  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(dados))
-  return Array.from(new Uint8Array(buf)).map((b) => b.toString(16).padStart(2, '0')).join('')
+  try {
+    if (typeof crypto !== 'undefined' && crypto?.subtle) {
+      const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(dados))
+      return Array.from(new Uint8Array(buf)).map((b) => b.toString(16).padStart(2, '0')).join('')
+    }
+  } catch {
+    // crypto.subtle indisponível em contexto não-HTTPS (modo LAN por IP)
+  }
+  return ''
 }
 
 const MAX_HISTORICO = 10
@@ -443,36 +450,41 @@ export const Configuracoes: React.FC = () => {
   const [saude, setSaude] = useState<{ ok: boolean; mensagem: string }[] | null>(null)
   const verificarSaude = async () => {
     const checks: { ok: boolean; mensagem: string }[] = []
-    const todasPessoas = await db.pessoas.toArray()
-    const todosProcessos = await db.processos.toArray()
-    const todosDocumentos = await db.documentosProcesso.toArray()
+    try {
+      const [todasPessoas, todosProcessos] = await Promise.all([
+        api.get<Pessoa[]>('/pessoas'),
+        api.get<Processo[]>('/processos'),
+      ])
+      const todosDocumentos = await carregarDocumentosApi(todosProcessos)
 
-    checks.push({ ok: true, mensagem: `${todasPessoas.length} pessoa(s) no banco` })
-    checks.push({ ok: true, mensagem: `${todosProcessos.length} processo(s) no banco` })
-    checks.push({ ok: true, mensagem: `${todosDocumentos.length} documento(s) no banco` })
+      checks.push({ ok: true, mensagem: `${todasPessoas.length} pessoa(s) no servidor` })
+      checks.push({ ok: true, mensagem: `${todosProcessos.length} processo(s) no servidor` })
+      checks.push({ ok: true, mensagem: `${todosDocumentos.length} documento(s) no servidor` })
 
-    // Processos órfãos
-    const pessoasIds = new Set(todasPessoas.map((p) => p.id))
-    const processosOrfaos = todosProcessos.filter((p) => !pessoasIds.has(p.pessoaId))
-    checks.push({
-      ok: processosOrfaos.length === 0,
-      mensagem:
-        processosOrfaos.length === 0
-          ? 'Nenhum processo órfão encontrado'
-          : `${processosOrfaos.length} processo(s) sem pessoa vinculada`,
-    })
+      // Processos órfãos
+      const pessoasIds = new Set(todasPessoas.map((p) => p.id))
+      const processosOrfaos = todosProcessos.filter((p) => !pessoasIds.has(p.pessoaId))
+      checks.push({
+        ok: processosOrfaos.length === 0,
+        mensagem:
+          processosOrfaos.length === 0
+            ? 'Nenhum processo órfão encontrado'
+            : `${processosOrfaos.length} processo(s) sem pessoa vinculada`,
+      })
 
-    // Documentos órfãos
-    const processosIds = new Set(todosProcessos.map((p) => p.id))
-    const docsOrfaos = todosDocumentos.filter((d) => !processosIds.has(d.processoId))
-    checks.push({
-      ok: docsOrfaos.length === 0,
-      mensagem:
-        docsOrfaos.length === 0
-          ? 'Nenhum documento órfão encontrado'
-          : `${docsOrfaos.length} documento(s) sem processo vinculado`,
-    })
-
+      // Documentos órfãos
+      const processosIds = new Set(todosProcessos.map((p) => p.id))
+      const docsOrfaos = todosDocumentos.filter((d) => !processosIds.has(d.processoId))
+      checks.push({
+        ok: docsOrfaos.length === 0,
+        mensagem:
+          docsOrfaos.length === 0
+            ? 'Nenhum documento órfão encontrado'
+            : `${docsOrfaos.length} documento(s) sem processo vinculado`,
+      })
+    } catch (error) {
+      checks.push({ ok: false, mensagem: obterMensagemErro(error, 'Erro ao verificar saúde do servidor') })
+    }
     setSaude(checks)
   }
 

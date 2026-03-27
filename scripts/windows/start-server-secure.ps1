@@ -184,6 +184,15 @@ try {
   Write-Log "[INFO] AGUIA_ALLOWED_ORIGINS=$AllowedOrigins"
   Write-Log "[INFO] Iniciando servidor em processo dedicado..."
 
+  # Verifica se a porta 3000 já está em uso antes de tentar iniciar.
+  $portaEmUso = Get-NetTCPConnection -LocalPort 3000 -State Listen -ErrorAction SilentlyContinue
+  if ($portaEmUso) {
+    $pidEmUso = $portaEmUso[0].OwningProcess
+    Write-Log "[AVISO] Porta 3000 ja esta em uso (PID=$pidEmUso). O servidor pode ja estar em execucao."
+    Write-Log "[AVISO] Finalize o servidor com PARAR-AGUIA-SERVIDOR.bat antes de reiniciar."
+    exit 1
+  }
+
   # Inicia diretamente via node para evitar encerramento precoce do wrapper do pnpm.
   $proc = Start-Process -FilePath "node" -ArgumentList @(".\\server\\index.mjs") -WorkingDirectory $repoRoot -PassThru
   if (-not $proc) {
