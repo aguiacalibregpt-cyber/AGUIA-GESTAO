@@ -91,9 +91,11 @@ export const Configuracoes: React.FC = () => {
   const [erroConexoes, setErroConexoes] = useState<string | null>(null)
   const inputArquivoRef = useRef<HTMLInputElement>(null)
   const conexoesJaCarregadasRef = useRef(false)
+  const conexoesEndpointIndisponivelRef = useRef(false)
   const [carregandoInicial, setCarregandoInicial] = useState(true)
 
   const carregarConexoesAtivas = useCallback(async () => {
+    if (conexoesEndpointIndisponivelRef.current) return
     if (!conexoesJaCarregadasRef.current) setCarregandoConexoes(true)
     try {
       const resposta = await api.get<{ totalAtivas: number; ttlSegundos: number; conexoes: ConexaoAtiva[] }>('/conexoes-ativas')
@@ -104,7 +106,17 @@ export const Configuracoes: React.FC = () => {
       }
       setUltimaAtualizacaoConexoes(new Date())
     } catch (error) {
-      setErroConexoes(obterMensagemErro(error, 'Não foi possível carregar dispositivos conectados'))
+      const mensagem = obterMensagemErro(error, 'Não foi possível carregar dispositivos conectados')
+      const mensagemNormalizada = mensagem.toLowerCase()
+      const endpointIndisponivel =
+        mensagemNormalizada.includes('rota api não encontrada')
+        || mensagemNormalizada.includes('erro http 404')
+      if (endpointIndisponivel) {
+        conexoesEndpointIndisponivelRef.current = true
+        setErroConexoes('Dispositivos conectados indisponível nesta versão do servidor.')
+      } else {
+        setErroConexoes(mensagem)
+      }
     } finally {
       conexoesJaCarregadasRef.current = true
       setCarregandoConexoes(false)

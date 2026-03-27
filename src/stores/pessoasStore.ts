@@ -57,36 +57,43 @@ export const usePessoasStore = create<PessoasStore>((set, get) => ({
       const falhasDescriptografia: string[] = []
       const pessoas = await Promise.all(
         pessoasBrutas.map(async (pessoa) => {
-          if (!pessoa.senhaGov) return pessoa
-          if (senhaGovEstaCriptografada(pessoa.senhaGov)) {
-            try {
-              const senhaTextoPlano = await descriptografarSenhaGov(pessoa.senhaGov, pessoa.cpf)
-              if (senhaGovUsaEsquemaLegado(pessoa.senhaGov)) {
-                const senhaMigrada = await criptografarSenhaGov(senhaTextoPlano, pessoa.cpf)
-                if (senhaMigrada) {
-                  await api.put(`/pessoas/${pessoa.id}`, {
-                    senhaGov: senhaMigrada,
-                    dataAtualizacao: new Date().toISOString(),
-                  })
+          try {
+            if (!pessoa.senhaGov) return pessoa
+            if (senhaGovEstaCriptografada(pessoa.senhaGov)) {
+              try {
+                const senhaTextoPlano = await descriptografarSenhaGov(pessoa.senhaGov, pessoa.cpf)
+                if (senhaGovUsaEsquemaLegado(pessoa.senhaGov)) {
+                  const senhaMigrada = await criptografarSenhaGov(senhaTextoPlano, pessoa.cpf)
+                  if (senhaMigrada) {
+                    await api.put(`/pessoas/${pessoa.id}`, {
+                      senhaGov: senhaMigrada,
+                      dataAtualizacao: new Date().toISOString(),
+                    })
+                  }
                 }
+                return { ...pessoa, senhaGov: senhaTextoPlano }
+              } catch {
+                registrarAcessoSenhaGov('falha_descriptografia', { pessoaId: pessoa.id })
+                falhasDescriptografia.push(pessoa.nome)
+                return { ...pessoa, senhaGov: undefined }
               }
-              return { ...pessoa, senhaGov: senhaTextoPlano }
-            } catch {
-              registrarAcessoSenhaGov('falha_descriptografia', { pessoaId: pessoa.id })
-              falhasDescriptografia.push(pessoa.nome)
-              return { ...pessoa, senhaGov: undefined }
             }
+
+            const senhaLegada = pessoa.senhaGov.trim()
+            if (!senhaLegada) return { ...pessoa, senhaGov: undefined }
+            const senhaCriptografada = await criptografarSenhaGov(senhaLegada, pessoa.cpf)
+            if (senhaCriptografada) {
+              await api.put(`/pessoas/${pessoa.id}`, {
+                senhaGov: senhaCriptografada,
+                dataAtualizacao: new Date().toISOString(),
+              })
+            }
+            return { ...pessoa, senhaGov: senhaLegada }
+          } catch {
+            registrarAcessoSenhaGov('falha_descriptografia', { pessoaId: pessoa.id })
+            falhasDescriptografia.push(pessoa.nome)
+            return { ...pessoa, senhaGov: undefined }
           }
-          const senhaLegada = pessoa.senhaGov.trim()
-          if (!senhaLegada) return { ...pessoa, senhaGov: undefined }
-          const senhaCriptografada = await criptografarSenhaGov(senhaLegada, pessoa.cpf)
-          if (senhaCriptografada) {
-            await api.put(`/pessoas/${pessoa.id}`, {
-              senhaGov: senhaCriptografada,
-              dataAtualizacao: new Date().toISOString(),
-            })
-          }
-          return { ...pessoa, senhaGov: senhaLegada }
         }),
       )
       pessoas.sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'))
