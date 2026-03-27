@@ -10,6 +10,10 @@ import {
   registrarAcessoSenhaGov,
 } from '../lib/crypto'
 
+// Cache em memória: evita re-executar PBKDF2 a cada poll quando o valor encriptado não mudou.
+// Chave: pessoaId, Valor: { encriptada: string usada na última descriptografia, textoPlano resultante }.
+const _senhasDecriptCache = new Map<string, { encriptada: string; textoPlano: string }>()
+
 interface PessoasStore {
   pessoas: Pessoa[]
   carregando: boolean
@@ -67,18 +71,28 @@ export const usePessoasStore = create<PessoasStore>((set, get) => ({
             try {
               if (!pessoa.senhaGov) return pessoa
               if (senhaGovEstaCriptografada(pessoa.senhaGov)) {
+                // Reutiliza descriptografia em cache se o valor encriptado não mudou.
+                // Evita re-executar PBKDF2 (200k iterações) a cada poll de 5s.
+                const cached = _senhasDecriptCache.get(pessoa.id)
+                if (cached && cached.encriptada === pessoa.senhaGov) {
+                  return { ...pessoa, senhaGov: cached.textoPlano }
+                }
                 try {
-                  const senhaTextoPlano = await descriptografarSenhaGov(pessoa.senhaGov, pessoa.cpf)
-                  if (senhaGovUsaEsquemaLegado(pessoa.senhaGov)) {
+                  const senhaEncriptada = pessoa.senhaGov!
+                  const senhaTextoPlano = await descriptografarSenhaGov(senhaEncriptada, pessoa.cpf) ?? ''
+                  _senhasDecriptCache.set(pessoa.id, { encriptada: senhaEncriptada, textoPlano: senhaTextoPlano })
+                  if (senhaGovUsaEsquemaLegado(senhaEncriptada)) {
                     const senhaMigrada = await criptografarSenhaGov(senhaTextoPlano, pessoa.cpf)
                     if (senhaMigrada) {
                       await api.put(`/pessoas/${pessoa.id}`, {
                         senhaGov: senhaMigrada,
                         dataAtualizacao: new Date().toISOString(),
                       })
+                      // Atualiza cache com o novo valor encriptado após migração
+                      _senhasDecriptCache.set(pessoa.id, { encriptada: senhaMigrada, textoPlano: senhaTextoPlano })
                     }
                   }
-                  return { ...pessoa, senhaGov: senhaTextoPlano }
+                  return { ...pessoa, senhaGov: senhaTextoPlano || undefined }
                 } catch {
                   registrarAcessoSenhaGov('falha_descriptografia', { pessoaId: pessoa.id })
                   falhasDescriptografia.push(pessoa.nome)
@@ -184,6 +198,10 @@ export const usePessoasStore = create<PessoasStore>((set, get) => ({
       set({
         pessoas: get().pessoas.map((p) => (p.id === id ? { ...p, ...atualizacoesEstado, dataAtualizacao } : p)),
       })
+      // Invalida cache se senhaGov ou CPF foram alterados (chave de derivação muda)
+      if (Object.prototype.hasOwnProperty.call(atualizacoes, 'senhaGov') || atualizacoes.cpf) {
+        _senhasDecriptCache.delete(id)
+      }
     } catch (error) {
       set({ erro: obterMensagemErro(error, 'Erro ao atualizar pessoa') })
       throw error
@@ -194,6 +212,7 @@ export const usePessoasStore = create<PessoasStore>((set, get) => ({
     set({ erro: null })
     try {
       await api.del(`/pessoas/${id}`)
+      _senhasDecriptCache.delete(id)
       set({ pessoas: get().pessoas.filter((p) => p.id !== id) })
     } catch (error) {
       set({ erro: obterMensagemErro(error, 'Erro ao deletar pessoa') })

@@ -167,13 +167,20 @@ export const Processos: React.FC<ProcessosProps> = ({ pessoaIdInicial }) => {
   useEffect(() => { void carregarPessoas() }, [carregarPessoas])
   useEffect(() => {
     let ativo = true
+    // Processos mudam com frequência: poll a cada 10s.
+    // Pessoas mudam raramente: poll a cada 30s (descriptografia cacheada, mas reduz carga na rede).
+    let ciclosPessoas = 0
     const sincronizar = () => {
       if (!ativo) return
       if (document.hidden) return
       void carregarProcessos()
-      void carregarPessoas()
+      ciclosPessoas += 1
+      if (ciclosPessoas >= 3) {
+        void carregarPessoas()
+        ciclosPessoas = 0
+      }
     }
-    const timer = window.setInterval(sincronizar, 5000)
+    const timer = window.setInterval(sincronizar, 10_000)
     return () => {
       ativo = false
       window.clearInterval(timer)
@@ -496,6 +503,8 @@ export const Processos: React.FC<ProcessosProps> = ({ pessoaIdInicial }) => {
       setSalvandoNovaP(true)
       const novaPessoa = await adicionarPessoa(formDataNovaP)
       setFormData((f) => ({ ...f, pessoaId: novaPessoa.id }))
+      setBuscaPessoaModal(`${novaPessoa.nome} - ${formatarCPF(novaPessoa.cpf)}`)
+      setMostraSugestoesPessoa(false)
       setMostraCriarPessoa(false)
       setFormDataNovaP({ nome: '', cpf: '', senhaGov: '', telefone: '', email: '', endereco: '', ativo: true })
       setFormErrosNovaP({})
