@@ -39,14 +39,14 @@ function Invoke-PnpmInstallWithRetry {
     [switch]$IncludeDevDependencies
   )
 
-  $args = @('install')
+  $cmdArgs = @('install')
   if (-not $IncludeDevDependencies) {
-    $args += '--prod'
+    $cmdArgs += '--prod'
   }
 
   for ($tentativa = 1; $tentativa -le 2; $tentativa++) {
-    Write-Log "[INFO] Executando: pnpm $($args -join ' ') (tentativa $tentativa/2)"
-    & pnpm @args
+    Write-Log "[INFO] Executando: pnpm $($cmdArgs -join ' ') (tentativa $tentativa/2)"
+    & pnpm @cmdArgs
     if ($LASTEXITCODE -eq 0) {
       return
     }
@@ -68,14 +68,14 @@ function Invoke-NpmInstallWithRetry {
     [switch]$IncludeDevDependencies
   )
 
-  $args = @('install', '--no-audit', '--no-fund')
+  $cmdArgs = @('install', '--no-audit', '--no-fund')
   if (-not $IncludeDevDependencies) {
-    $args += '--omit=dev'
+    $cmdArgs += '--omit=dev'
   }
 
   for ($tentativa = 1; $tentativa -le 2; $tentativa++) {
-    Write-Log "[INFO] Executando: npm $($args -join ' ') (tentativa $tentativa/2)"
-    & npm @args
+    Write-Log "[INFO] Executando: npm $($cmdArgs -join ' ') (tentativa $tentativa/2)"
+    & npm @cmdArgs
     if ($LASTEXITCODE -eq 0) {
       return
     }
@@ -187,7 +187,8 @@ try {
   # Verifica se a porta 3000 já está em uso antes de tentar iniciar.
   $portaEmUso = Get-NetTCPConnection -LocalPort 3000 -State Listen -ErrorAction SilentlyContinue
   if ($portaEmUso) {
-    $pidEmUso = $portaEmUso[0].OwningProcess
+    # OwningProcess pode ser 0 sem privilegios elevados; exibir 'desconhecido' nesse caso.
+    $pidEmUso = if ($portaEmUso[0].OwningProcess -gt 0) { $portaEmUso[0].OwningProcess } else { 'desconhecido (execute como Administrador para ver o PID)' }
     Write-Log "[AVISO] Porta 3000 ja esta em uso (PID=$pidEmUso). O servidor pode ja estar em execucao."
     Write-Log "[AVISO] Finalize o servidor com PARAR-AGUIA-SERVIDOR.bat antes de reiniciar."
     exit 1
@@ -209,8 +210,13 @@ try {
       throw "Servidor encerrou logo apos iniciar. ExitCode=$($proc.ExitCode)."
     }
 
-    $porta = Get-NetTCPConnection -LocalPort 3000 -State Listen -ErrorAction SilentlyContinue |
-      Where-Object { $_.OwningProcess -eq $proc.Id }
+    $todasPorta = Get-NetTCPConnection -LocalPort 3000 -State Listen -ErrorAction SilentlyContinue
+    $porta = $todasPorta | Where-Object { $_.OwningProcess -eq $proc.Id }
+    # Fallback: sem privilegios elevados OwningProcess pode ser 0; se a porta abriu e ninguem mais
+    # estava usando, assume que eh o processo que acabamos de iniciar.
+    if (-not $porta -and $todasPorta) {
+      $porta = $todasPorta
+    }
 
     if ($porta) {
       $escutando = $true
