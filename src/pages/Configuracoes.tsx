@@ -113,7 +113,7 @@ export const Configuracoes: React.FC = () => {
         || mensagemNormalizada.includes('erro http 404')
       if (endpointIndisponivel) {
         conexoesEndpointIndisponivelRef.current = true
-        setErroConexoes('Dispositivos conectados indisponível nesta versão do servidor.')
+        setErroConexoes('Dispositivos conectados indisponível nesta versão da API. Atualize ou reinicie o servidor AGUIA para habilitar este painel.')
       } else {
         setErroConexoes(mensagem)
       }
@@ -198,6 +198,16 @@ export const Configuracoes: React.FC = () => {
         setMensagem({ tipo: 'warning', texto: 'Inatividade deve ficar entre 1 e 120 minutos' })
         return
       }
+
+      // Persiste token antes das chamadas de API abaixo (ex.: primeiro cadastro de PIN com auth ativa).
+      try {
+        const token = tokenApi.trim()
+        if (token) localStorage.setItem('aguia.api.token', token)
+        else localStorage.removeItem('aguia.api.token')
+      } catch {
+        // ignora falha de persistência local
+      }
+
       await salvarConfiguracao('seguranca_idle_minutos', idle)
 
       if (novoPin || confirmarPin) {
@@ -214,14 +224,6 @@ export const Configuracoes: React.FC = () => {
         setPinConfigurado(true)
         setNovoPin('')
         setConfirmarPin('')
-      }
-
-      try {
-        const token = tokenApi.trim()
-        if (token) localStorage.setItem('aguia.api.token', token)
-        else localStorage.removeItem('aguia.api.token')
-      } catch {
-        // ignora falha de persistência local
       }
 
       setMensagem({ tipo: 'success', texto: 'Configurações de segurança salvas!' })
