@@ -18,7 +18,7 @@ echo ============================================
 echo Pasta: %CD%
 echo.
 if "%AGUIA_ALLOWED_ORIGINS%"=="" (
-  set "AGUIA_ALLOWED_ORIGINS=http://127.0.0.1:3000,http://localhost:3000,http://0.0.0.0:3000"
+  set "AGUIA_ALLOWED_ORIGINS=http://127.0.0.1:3000,http://localhost:3000"
 )
 
 echo [INFO] Delegando inicializacao para o modo robusto (scripts\windows\start-server-secure.ps1)

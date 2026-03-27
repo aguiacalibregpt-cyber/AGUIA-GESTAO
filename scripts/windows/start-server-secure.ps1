@@ -1,6 +1,6 @@
 param(
   [string]$ApiToken = "",
-  [string]$AllowedOrigins = "http://127.0.0.1:3000,http://localhost:3000,http://0.0.0.0:3000"
+  [string]$AllowedOrigins = "http://127.0.0.1:3000,http://localhost:3000"
 )
 
 $ErrorActionPreference = "Stop"
@@ -32,6 +32,21 @@ function Write-Log {
   $line = "[{0}] {1}" -f (Get-Date -Format "yyyy-MM-dd HH:mm:ss"), $Message
   Add-Content -Path $logFile -Value $line
   Write-Host $Message
+}
+
+function Read-TokenMasked {
+  param([string]$Prompt)
+
+  $secure = Read-Host -AsSecureString $Prompt
+  $bstr = [System.IntPtr]::Zero
+  try {
+    $bstr = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($secure)
+    return [System.Runtime.InteropServices.Marshal]::PtrToStringBSTR($bstr)
+  } finally {
+    if ($bstr -ne [System.IntPtr]::Zero) {
+      [System.Runtime.InteropServices.Marshal]::ZeroFreeBSTR($bstr)
+    }
+  }
 }
 
 function Invoke-PnpmInstallWithRetry {
@@ -116,7 +131,10 @@ try {
   $includeDevDependencies = $precisaBuild
 
   if ($pnpm -or $npm) {
-    if (-not (Test-Path "node_modules")) {
+    # Se precisaBuild, garante que node_modules tenha dev deps (ex.: vite).
+    $buildToolPresente = (Test-Path "node_modules\vite\package.json") -or (Test-Path "node_modules\.bin\vite") -or (Test-Path "node_modules\.bin\vite.cmd")
+    $nodeModulesOk = (Test-Path "node_modules") -and (-not $precisaBuild -or $buildToolPresente)
+    if (-not $nodeModulesOk) {
       Write-Log "[INFO] Instalando dependencias..."
       if ($pnpm) {
         try {
@@ -166,7 +184,7 @@ try {
   $tokenFinal = $ApiToken.Trim()
   if ([string]::IsNullOrWhiteSpace($tokenFinal)) {
     Write-Log "[INFO] AGUIA_API_TOKEN nao informado. Solicitando token para esta execucao..."
-    $tokenFinal = (Read-Host "Informe AGUIA_API_TOKEN").Trim()
+    $tokenFinal = (Read-TokenMasked "Informe AGUIA_API_TOKEN").Trim()
   }
 
   if ([string]::IsNullOrWhiteSpace($tokenFinal)) {
@@ -176,11 +194,7 @@ try {
   $env:AGUIA_API_TOKEN = $tokenFinal
   $env:AGUIA_ALLOWED_ORIGINS = $AllowedOrigins
 
-  if ([string]::IsNullOrWhiteSpace($env:AGUIA_API_TOKEN)) {
-    Write-Log "[AVISO] AGUIA_API_TOKEN vazio. Auth API desabilitada para esta execucao."
-  } else {
-    Write-Log "[INFO] AGUIA_API_TOKEN configurado."
-  }
+  Write-Log "[INFO] AGUIA_API_TOKEN configurado."
   Write-Log "[INFO] AGUIA_ALLOWED_ORIGINS=$AllowedOrigins"
   Write-Log "[INFO] Iniciando servidor em processo dedicado..."
 
@@ -195,7 +209,9 @@ try {
   }
 
   # Inicia diretamente via node para evitar encerramento precoce do wrapper do pnpm.
-  $proc = Start-Process -FilePath "node" -ArgumentList @(".\\server\\index.mjs") -WorkingDirectory $repoRoot -PassThru
+  $serverStdoutLog = Join-Path $logDir "aguia-server-stdout.log"
+  $serverStderrLog = Join-Path $logDir "aguia-server-stderr.log"
+  $proc = Start-Process -FilePath "node" -ArgumentList @(".\server\index.mjs") -WorkingDirectory $repoRoot -RedirectStandardOutput $serverStdoutLog -RedirectStandardError $serverStderrLog -PassThru
   if (-not $proc) {
     throw "Falha ao iniciar processo do servidor."
   }
@@ -207,7 +223,7 @@ try {
     Start-Sleep -Milliseconds 500
 
     if ($proc.HasExited) {
-      throw "Servidor encerrou logo apos iniciar. ExitCode=$($proc.ExitCode)."
+      throw "Servidor encerrou logo apos iniciar. ExitCode=$($proc.ExitCode). Consulte logs: $serverStdoutLog e $serverStderrLog."
     }
 
     $todasPorta = Get-NetTCPConnection -LocalPort 3000 -State Listen -ErrorAction SilentlyContinue
@@ -228,6 +244,7 @@ try {
     throw "Servidor iniciado, mas nao entrou em LISTENING na porta 3000 dentro do tempo esperado."
   }
 
+  Write-Log "[INFO] Logs do servidor: stdout=$serverStdoutLog ; stderr=$serverStderrLog"
   Write-Log "[SUCESSO] Servidor ativo em http://0.0.0.0:3000 (PID=$($proc.Id))."
   exit 0
 } catch {
