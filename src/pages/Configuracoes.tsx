@@ -88,6 +88,7 @@ export const Configuracoes: React.FC = () => {
   const [ttlConexoesSegundos, setTtlConexoesSegundos] = useState(300)
   const [carregandoConexoes, setCarregandoConexoes] = useState(false)
   const [ultimaAtualizacaoConexoes, setUltimaAtualizacaoConexoes] = useState<Date | null>(null)
+  const [erroConexoes, setErroConexoes] = useState<string | null>(null)
   const inputArquivoRef = useRef<HTMLInputElement>(null)
   const conexoesJaCarregadasRef = useRef(false)
   const [carregandoInicial, setCarregandoInicial] = useState(true)
@@ -97,13 +98,13 @@ export const Configuracoes: React.FC = () => {
     try {
       const resposta = await api.get<{ totalAtivas: number; ttlSegundos: number; conexoes: ConexaoAtiva[] }>('/conexoes-ativas')
       setConexoesAtivas(resposta?.conexoes || [])
+      setErroConexoes(null)
       if (typeof resposta?.ttlSegundos === 'number' && resposta.ttlSegundos > 0) {
         setTtlConexoesSegundos(resposta.ttlSegundos)
       }
       setUltimaAtualizacaoConexoes(new Date())
-    } catch {
-      // Em ambientes sem servidor/endpoint, não bloqueia a tela de configurações.
-      setConexoesAtivas([])
+    } catch (error) {
+      setErroConexoes(obterMensagemErro(error, 'Não foi possível carregar dispositivos conectados'))
     } finally {
       conexoesJaCarregadasRef.current = true
       setCarregandoConexoes(false)
@@ -646,6 +647,12 @@ export const Configuracoes: React.FC = () => {
             </span>
           )}
         </div>
+
+        {erroConexoes && (
+          <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-4">
+            {erroConexoes}
+          </p>
+        )}
 
         {carregandoConexoes ? (
           <div className="space-y-2">

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react'
+import React, { useState, useEffect, useMemo, useCallback } from 'react'
 import type { Processo } from '../types/models'
 import { TipoProcesso, StatusProcesso } from '../types/models'
 import { useProcessosStore } from '../stores/processosStore'
@@ -206,7 +206,10 @@ export const Processos: React.FC<ProcessosProps> = ({ pessoaIdInicial }) => {
     return mapa
   }, [pessoas])
 
-  const obterPessoaDoProcesso = (pessoaId: string) => pessoasPorId.get(normalizarIdRelacionamento(pessoaId))
+  const obterPessoaDoProcesso = useCallback(
+    (pessoaId: string) => pessoasPorId.get(normalizarIdRelacionamento(pessoaId)),
+    [pessoasPorId],
+  )
 
   const pessoasFiltradasModal = useMemo(() => {
     const textoBusca = normalizarTextoBusca(buscaPessoaModal)
@@ -262,7 +265,7 @@ export const Processos: React.FC<ProcessosProps> = ({ pessoaIdInicial }) => {
       const dataB = new Date(b.dataAbertura || b.dataCadastro).getTime()
       return dataA - dataB
     })
-  }, [processos, busca, filtroStatus, filtroTipo, filtroVenc, pessoasPorId])
+  }, [processos, busca, filtroStatus, filtroTipo, filtroVenc, obterPessoaDoProcesso])
 
   const abrirModalNovo = () => {
     setFormData({ ...FORM_INICIAL, pessoaId: pessoaIdInicial || '' })
@@ -291,17 +294,18 @@ export const Processos: React.FC<ProcessosProps> = ({ pessoaIdInicial }) => {
     setMostraModal(true)
   }
 
-  const selecionarPessoaNoModal = (pessoaId: string, preencherBusca = false) => {
+  const selecionarPessoaNoModal = useCallback((pessoaId: string, preencherBusca = false) => {
     setFormData((atual) => ({ ...atual, pessoaId }))
     if (preencherBusca) {
       const pessoa = pessoasPorId.get(normalizarIdRelacionamento(pessoaId))
       if (pessoa) setBuscaPessoaModal(`${pessoa.nome} - ${pessoa.cpf}`)
       setMostraSugestoesPessoa(false)
     }
-    if (formErros.pessoaId) {
-      setFormErros((atual) => ({ ...atual, pessoaId: undefined }))
-    }
-  }
+    setFormErros((atual) => {
+      if (!atual.pessoaId) return atual
+      return { ...atual, pessoaId: undefined }
+    })
+  }, [pessoasPorId])
 
   const processoEditando = editandoId ? processos.find((processo) => processo.id === editandoId) : undefined
   const pessoaEditando = processoEditando ? obterPessoaDoProcesso(processoEditando.pessoaId) : undefined
@@ -321,7 +325,7 @@ export const Processos: React.FC<ProcessosProps> = ({ pessoaIdInicial }) => {
     if (normalizarIdRelacionamento(unicaPessoa.id) !== normalizarIdRelacionamento(formData.pessoaId)) {
       selecionarPessoaNoModal(unicaPessoa.id)
     }
-  }, [mostraModal, buscaPessoaModal, pessoasFiltradasModal, formData.pessoaId])
+  }, [mostraModal, buscaPessoaModal, pessoasFiltradasModal, formData.pessoaId, selecionarPessoaNoModal])
 
   useEffect(() => {
     if (!mostraModal) return
@@ -426,7 +430,29 @@ export const Processos: React.FC<ProcessosProps> = ({ pessoaIdInicial }) => {
 
   const copiarCredencial = async (valor: string, tipo: 'cpf' | 'senha') => {
     try {
-      await navigator.clipboard.writeText(valor)
+      if (!valor) {
+        throw new Error('Valor vazio para cópia')
+      }
+
+      if (window.isSecureContext && navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(valor)
+      } else {
+        const area = document.createElement('textarea')
+        area.value = valor
+        area.setAttribute('readonly', 'true')
+        area.style.position = 'fixed'
+        area.style.opacity = '0'
+        area.style.pointerEvents = 'none'
+        document.body.appendChild(area)
+        area.focus()
+        area.select()
+        const copiado = document.execCommand('copy')
+        document.body.removeChild(area)
+        if (!copiado) {
+          throw new Error('Não foi possível acessar a área de transferência')
+        }
+      }
+
       if (tipo === 'senha' && credenciais) {
         const pessoa = obterPessoaDoProcesso(processos.find((pr) => pr.id === credenciais.processoid)?.pessoaId || '')
         if (pessoa) registrarAcessoSenhaGov('copia', { pessoaId: pessoa.id, processoId: credenciais.processoid })

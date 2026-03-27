@@ -70,13 +70,15 @@ export const validarProcessoFormulario = (
   formData: ProcessoFormData,
 ): Partial<Record<'pessoaId' | 'tipo' | 'numero' | 'dataPrazo', string>> => {
   const erros: Partial<Record<'pessoaId' | 'tipo' | 'numero' | 'dataPrazo', string>> = {}
+  const pessoaIdLimpo = formData.pessoaId.trim()
+  const tipoLimpo = formData.tipo.trim()
   const numeroLimpo = formData.numero.trim()
 
-  if (!formData.pessoaId) {
+  if (!pessoaIdLimpo) {
     erros.pessoaId = 'Selecione a pessoa vinculada ao processo'
   }
 
-  if (!formData.tipo) {
+  if (!tipoLimpo) {
     erros.tipo = 'Selecione o tipo do processo'
   }
 
