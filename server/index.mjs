@@ -42,7 +42,7 @@ const LEGACY_APP_SALT = 'aguia-despachante::senha-gov'
 
 const app = express()
 
-const RATE_LIMIT_MAX = Number(process.env.AGUIA_RATE_LIMIT_MAX || 300)
+const RATE_LIMIT_MAX = Number(process.env.AGUIA_RATE_LIMIT_MAX || 1000)
 const RATE_LIMIT_WINDOW_MS = Number(process.env.AGUIA_RATE_LIMIT_WINDOW_MS || 60_000)
 const rateBucket = new Map()
 const ACTIVE_CONNECTION_TTL_MS = Number(process.env.AGUIA_ACTIVE_CONNECTION_TTL_MS || 5 * 60_000)
@@ -593,8 +593,8 @@ app.delete('/api/processos/:id', (req, res) => {
 app.get('/api/documentos-processo', (req, res) => {
   const db = readDb()
   const processoId = req.query.processoId
-  if (!processoId) return res.status(400).json({ message: 'processoId é obrigatório' })
-  return res.json(db.documentosProcesso.filter((d) => d.processoId === processoId))
+  if (processoId) return res.json(db.documentosProcesso.filter((d) => d.processoId === processoId))
+  return res.json(db.documentosProcesso)
 })
 
 app.post('/api/documentos-processo', (req, res) => {

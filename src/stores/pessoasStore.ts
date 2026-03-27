@@ -55,47 +55,56 @@ export const usePessoasStore = create<PessoasStore>((set, get) => ({
     try {
       const pessoasBrutas = ((await api.get<PessoaPersistida[]>('/pessoas')) ?? []).map(parsePessoa)
       const falhasDescriptografia: string[] = []
-      const pessoas = await Promise.all(
-        pessoasBrutas.map(async (pessoa) => {
-          try {
-            if (!pessoa.senhaGov) return pessoa
-            if (senhaGovEstaCriptografada(pessoa.senhaGov)) {
-              try {
-                const senhaTextoPlano = await descriptografarSenhaGov(pessoa.senhaGov, pessoa.cpf)
-                if (senhaGovUsaEsquemaLegado(pessoa.senhaGov)) {
-                  const senhaMigrada = await criptografarSenhaGov(senhaTextoPlano, pessoa.cpf)
-                  if (senhaMigrada) {
-                    await api.put(`/pessoas/${pessoa.id}`, {
-                      senhaGov: senhaMigrada,
-                      dataAtualizacao: new Date().toISOString(),
-                    })
-                  }
-                }
-                return { ...pessoa, senhaGov: senhaTextoPlano }
-              } catch {
-                registrarAcessoSenhaGov('falha_descriptografia', { pessoaId: pessoa.id })
-                falhasDescriptografia.push(pessoa.nome)
-                return { ...pessoa, senhaGov: undefined }
-              }
-            }
 
-            const senhaLegada = pessoa.senhaGov.trim()
-            if (!senhaLegada) return { ...pessoa, senhaGov: undefined }
-            const senhaCriptografada = await criptografarSenhaGov(senhaLegada, pessoa.cpf)
-            if (senhaCriptografada) {
-              await api.put(`/pessoas/${pessoa.id}`, {
-                senhaGov: senhaCriptografada,
-                dataAtualizacao: new Date().toISOString(),
-              })
+      // Processa em lotes de 5 para evitar disparar centenas de PUTs simultâneos
+      // (migração de senha legada) e atingir o rate limit do servidor.
+      const LOTE = 5
+      const pessoas: Pessoa[] = []
+      for (let i = 0; i < pessoasBrutas.length; i += LOTE) {
+        const lote = pessoasBrutas.slice(i, i + LOTE)
+        const resultados = await Promise.all(
+          lote.map(async (pessoa) => {
+            try {
+              if (!pessoa.senhaGov) return pessoa
+              if (senhaGovEstaCriptografada(pessoa.senhaGov)) {
+                try {
+                  const senhaTextoPlano = await descriptografarSenhaGov(pessoa.senhaGov, pessoa.cpf)
+                  if (senhaGovUsaEsquemaLegado(pessoa.senhaGov)) {
+                    const senhaMigrada = await criptografarSenhaGov(senhaTextoPlano, pessoa.cpf)
+                    if (senhaMigrada) {
+                      await api.put(`/pessoas/${pessoa.id}`, {
+                        senhaGov: senhaMigrada,
+                        dataAtualizacao: new Date().toISOString(),
+                      })
+                    }
+                  }
+                  return { ...pessoa, senhaGov: senhaTextoPlano }
+                } catch {
+                  registrarAcessoSenhaGov('falha_descriptografia', { pessoaId: pessoa.id })
+                  falhasDescriptografia.push(pessoa.nome)
+                  return { ...pessoa, senhaGov: undefined }
+                }
+              }
+
+              const senhaLegada = pessoa.senhaGov.trim()
+              if (!senhaLegada) return { ...pessoa, senhaGov: undefined }
+              const senhaCriptografada = await criptografarSenhaGov(senhaLegada, pessoa.cpf)
+              if (senhaCriptografada) {
+                await api.put(`/pessoas/${pessoa.id}`, {
+                  senhaGov: senhaCriptografada,
+                  dataAtualizacao: new Date().toISOString(),
+                })
+              }
+              return { ...pessoa, senhaGov: senhaLegada }
+            } catch {
+              registrarAcessoSenhaGov('falha_descriptografia', { pessoaId: pessoa.id })
+              falhasDescriptografia.push(pessoa.nome)
+              return { ...pessoa, senhaGov: undefined }
             }
-            return { ...pessoa, senhaGov: senhaLegada }
-          } catch {
-            registrarAcessoSenhaGov('falha_descriptografia', { pessoaId: pessoa.id })
-            falhasDescriptografia.push(pessoa.nome)
-            return { ...pessoa, senhaGov: undefined }
-          }
-        }),
-      )
+          }),
+        )
+        pessoas.push(...resultados)
+      }
       pessoas.sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'))
       set({ pessoas, avisos: falhasDescriptografia.length > 0
         ? [`Falha ao descriptografar senha de: ${falhasDescriptografia.join(', ')}`]

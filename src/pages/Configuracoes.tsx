@@ -63,15 +63,6 @@ const calcularChecksum = async (dados: string): Promise<string> => {
 
 const MAX_HISTORICO = 10
 
-const carregarDocumentosApi = async (processosLista: Array<{ id: string }>): Promise<DocumentoProcesso[]> => {
-  const grupos = await Promise.all(
-    processosLista.map((processo) =>
-      api.get<DocumentoProcesso[]>(`/documentos-processo?processoId=${encodeURIComponent(processo.id)}`),
-    ),
-  )
-  return grupos.flat()
-}
-
 export const Configuracoes: React.FC = () => {
   const { processos, carregarProcessos } = useProcessosStore()
   const { pessoas, carregarPessoas } = usePessoasStore()
@@ -250,7 +241,7 @@ export const Configuracoes: React.FC = () => {
       const backupOpts = { timeoutMs: 60_000, retries: 1 }
       const pessoasApi = await api.get<Pessoa[]>('/pessoas', backupOpts)
       const processosApi = await api.get<Processo[]>('/processos', backupOpts)
-      const todosDocumentos = await carregarDocumentosApi(processosApi)
+      const todosDocumentos = await api.get<DocumentoProcesso[]>('/documentos-processo', backupOpts)
       const todasConfiguracoes = await api.get<Configuracao[]>('/configuracoes', backupOpts)
 
       // Re-criptografa senhaGov com a senha do backup (portátil)
@@ -451,11 +442,11 @@ export const Configuracoes: React.FC = () => {
   const verificarSaude = async () => {
     const checks: { ok: boolean; mensagem: string }[] = []
     try {
-      const [todasPessoas, todosProcessos] = await Promise.all([
+      const [todasPessoas, todosProcessos, todosDocumentos] = await Promise.all([
         api.get<Pessoa[]>('/pessoas'),
         api.get<Processo[]>('/processos'),
+        api.get<DocumentoProcesso[]>('/documentos-processo'),
       ])
-      const todosDocumentos = await carregarDocumentosApi(todosProcessos)
 
       checks.push({ ok: true, mensagem: `${todasPessoas.length} pessoa(s) no servidor` })
       checks.push({ ok: true, mensagem: `${todosProcessos.length} processo(s) no servidor` })
