@@ -4,9 +4,13 @@ declare module '*backup-utils.mjs' {
     message?: string
   }
 
-  export function validarIntegridadeBackup(payload: {
+  export type PayloadBackup = {
     pessoas: Array<{ id: string }>
     processos: Array<{ id: string; pessoaId: string }>
     documentosProcesso: Array<{ id: string; processoId: string }>
-  }): ResultadoIntegridade
+    configuracoes?: Array<unknown>
+  }
+
+  export function validarIntegridadeBackup(payload: PayloadBackup): ResultadoIntegridade
+  export function ehBackupVazio(payload: PayloadBackup): boolean
 }

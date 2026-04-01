@@ -412,6 +412,7 @@ export const Configuracoes: React.FC = () => {
       await api.post('/backup/import', {
         versao: '2.0',
         timestamp: new Date().toISOString(),
+        confirmarLimpezaTotal: true,
         pessoas: [],
         processos: [],
         documentosProcesso: [],

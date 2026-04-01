@@ -18,10 +18,20 @@ type ConfigPersistida = Omit<Configuracao, 'dataCadastro' | 'dataAtualizacao'> &
   dataAtualizacao: string
 }
 
+const parseDateSafe = (v: string): Date => {
+  const d = new Date(v)
+  return Number.isNaN(d.getTime()) ? new Date() : d
+}
+
+const normalizarDateValida = (d: Date | undefined, fallback: Date): Date => {
+  if (!d) return fallback
+  return Number.isNaN(d.getTime()) ? fallback : d
+}
+
 const parseConfig = (c: ConfigPersistida): Configuracao => ({
   ...c,
-  dataCadastro: new Date(c.dataCadastro),
-  dataAtualizacao: new Date(c.dataAtualizacao),
+  dataCadastro: parseDateSafe(c.dataCadastro),
+  dataAtualizacao: parseDateSafe(c.dataAtualizacao),
 })
 
 const ehConfiguracaoInexistente = (mensagem: string): boolean => {
@@ -72,13 +82,14 @@ export const useConfiguracoesStore = create<ConfiguracoesStore>((set, get) => ({
     try {
       const dataAtualizacao = new Date()
       const configExistente = get().configuracoes.find((c) => c.chave === chave)
+      const dataCadastroExistente = normalizarDateValida(configExistente?.dataCadastro, dataAtualizacao)
       const configSalva: Configuracao = configExistente
-        ? { ...configExistente, valor, dataAtualizacao }
+        ? { ...configExistente, valor, dataCadastro: dataCadastroExistente, dataAtualizacao }
         : {
             id: gerarId('config'),
             chave,
             valor,
-            dataCadastro: new Date(),
+            dataCadastro: dataAtualizacao,
             dataAtualizacao,
           }
 

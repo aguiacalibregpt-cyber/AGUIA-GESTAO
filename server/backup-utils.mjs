@@ -29,11 +29,30 @@ export const backupPayloadSchema = z.object({
   versao: z.string().min(1).max(20),
   timestamp: z.string().min(1).max(50),
   checksum: z.string().max(255).optional(),
+  confirmarLimpezaTotal: z.boolean().optional(),
   pessoas: z.array(pessoaSchema),
   processos: z.array(processoSchema),
   documentosProcesso: z.array(documentoSchema).default([]),
   configuracoes: z.array(configuracaoSchema).default([]),
 })
+
+export const ehBackupVazio = (payload) =>
+  payload.pessoas.length === 0
+  && payload.processos.length === 0
+  && (payload.documentosProcesso?.length ?? 0) === 0
+  && (payload.configuracoes?.length ?? 0) === 0
+
+const ordenarRecursivo = (valor) => {
+  if (Array.isArray(valor)) return valor.map(ordenarRecursivo)
+  if (valor && typeof valor === 'object') {
+    const entriesOrdenadas = Object.entries(valor)
+      .filter(([, v]) => v !== undefined)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([k, v]) => [k, ordenarRecursivo(v)])
+    return Object.fromEntries(entriesOrdenadas)
+  }
+  return valor
+}
 
 const idsDuplicados = (itens) => {
   const vistos = new Set()
@@ -71,8 +90,10 @@ export const validarIntegridadeBackup = (payload) => {
   return { ok: true }
 }
 
-export const calcularChecksumJson = (objSemChecksum) =>
-  crypto.createHash('sha256').update(JSON.stringify(objSemChecksum, null, 2)).digest('hex')
+export const calcularChecksumJson = (objSemChecksum) => {
+  const normalizado = ordenarRecursivo(objSemChecksum)
+  return crypto.createHash('sha256').update(JSON.stringify(normalizado)).digest('hex')
+}
 
 export const validarChecksumBackup = (payload) => {
   if (!payload.checksum) return { ok: true }

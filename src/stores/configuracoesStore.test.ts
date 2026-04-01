@@ -112,4 +112,30 @@ describe('stores/configuracoesStore', () => {
     expect(useConfiguracoesStore.getState().configuracoes).toEqual([])
     expect(apiMock.del).toHaveBeenCalledWith('/configuracoes/tema')
   })
+
+  it('salva configuração mesmo com data inválida já carregada', async () => {
+    useConfiguracoesStore.setState({
+      configuracoes: [
+        {
+          id: 'cfg-1',
+          chave: 'ultimoBackup',
+          valor: 'valor-antigo',
+          dataCadastro: new Date('data-invalida'),
+          dataAtualizacao: new Date('2026-03-01T00:00:00.000Z'),
+        },
+      ],
+      carregando: false,
+      erro: null,
+    })
+    apiMock.put.mockResolvedValueOnce({})
+
+    await expect(useConfiguracoesStore.getState().salvarConfiguracao('ultimoBackup', '2026-04-01T12:00:00.000Z'))
+      .resolves
+      .toBeUndefined()
+
+    expect(apiMock.put).toHaveBeenCalledTimes(1)
+    const payload = apiMock.put.mock.calls[0][1] as { dataCadastro: string; dataAtualizacao: string }
+    expect(Number.isNaN(new Date(payload.dataCadastro).getTime())).toBe(false)
+    expect(Number.isNaN(new Date(payload.dataAtualizacao).getTime())).toBe(false)
+  })
 })

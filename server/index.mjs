@@ -8,6 +8,7 @@ import { z } from 'zod'
 import {
   backupPayloadSchema,
   calcularChecksumJson,
+  ehBackupVazio,
   validarChecksumBackup,
   validarIntegridadeBackup,
 } from './backup-utils.mjs'
@@ -447,6 +448,12 @@ app.get('/api/backup/export', (_, res) => {
 app.post('/api/backup/import', (req, res) => {
   const payload = validarPayload(backupPayloadSchema, req.body, res, 'Backup inválido ou incompatível')
   if (!payload) return
+
+  if (ehBackupVazio(payload) && !payload.confirmarLimpezaTotal) {
+    return res.status(400).json({
+      message: 'Backup vazio bloqueado por segurança. Para limpar tudo, envie confirmarLimpezaTotal=true.',
+    })
+  }
 
   const checksum = validarChecksumBackup(payload)
   if (!checksum.ok) return res.status(400).json({ message: checksum.message })
