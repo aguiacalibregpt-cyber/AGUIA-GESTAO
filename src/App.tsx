@@ -234,149 +234,178 @@ function AppInner() {
   return (
     <div className="min-h-screen bg-gray-100">
       {estadoAcesso !== 'desbloqueado' && (
-        <div className="fixed inset-0 z-50 bg-gradient-to-br from-zinc-950 via-red-950 to-black flex items-center justify-center p-4">
-          <div className="w-full max-w-md bg-white rounded-2xl shadow-2xl p-6 space-y-4">
-            <div className="flex items-center gap-3">
-              <div className="h-11 w-11 rounded-lg bg-red-100 flex items-center justify-center">
-                {!logoIndisponivel ? (
-                  <img
-                    src="/logo-aguia.jpg"
-                    alt="Logotipo Águia"
-                    className="h-11 w-11 rounded-lg object-cover"
-                    onError={() => setLogoIndisponivel(true)}
-                  />
-                ) : (
-                  <Lock className="w-6 h-6 text-red-700" />
-                )}
+        <div
+          className="fixed inset-0 z-50 overflow-y-auto"
+          style={{ background: 'radial-gradient(ellipse at 50% 15%, #450a0a 0%, #18181b 55%, #09090b 100%)' }}
+        >
+          <div className="flex min-h-full items-center justify-center p-4">
+            <div className="relative w-full max-w-sm">
+
+              {/* Card */}
+              <div className="bg-white rounded-3xl overflow-hidden shadow-[0_32px_64px_rgba(0,0,0,0.55)]">
+
+                {/* Cabeçalho colorido */}
+                <div className="bg-gradient-to-br from-zinc-900 via-red-950 to-zinc-900 px-6 pt-8 pb-7 flex flex-col items-center gap-3">
+                  <div className="h-16 w-16 rounded-2xl bg-white/10 ring-2 ring-white/20 shadow-md flex items-center justify-center">
+                    {!logoIndisponivel ? (
+                      <img
+                        src="/logo-aguia.jpg"
+                        alt="Logotipo Águia"
+                        className="h-16 w-16 rounded-2xl object-cover"
+                        onError={() => setLogoIndisponivel(true)}
+                      />
+                    ) : (
+                      <Lock className="w-8 h-8 text-red-300" />
+                    )}
+                  </div>
+                  <div className="text-center">
+                    <h2 className="text-base font-bold text-white tracking-tight">
+                      {estadoAcesso === 'setup' ? 'Configurar PIN' : 'Sessão bloqueada'}
+                    </h2>
+                    <p className="text-xs text-red-300/70 mt-0.5 font-medium uppercase tracking-wide">{nomeEmpresa}</p>
+                  </div>
+                </div>
+
+                {/* Corpo do card */}
+                <div className="px-6 pt-5 pb-6 space-y-4">
+
+                  {estadoAcesso === 'carregando' && (
+                    <div className="flex items-center justify-center gap-3 py-6 text-sm text-gray-500">
+                      <div className="w-5 h-5 rounded-full border-2 border-gray-200 border-t-red-600 animate-spin" />
+                      Carregando segurança…
+                    </div>
+                  )}
+
+                  {estadoAcesso === 'token' && (
+                    <div className="space-y-3">
+                      <p className="text-sm text-gray-500 leading-relaxed rounded-xl bg-gray-50 border border-gray-100 px-3 py-2.5">
+                        O servidor exige autenticação. Informe o Token da API para validar o acesso antes de configurar/desbloquear PIN.
+                      </p>
+                      <Input
+                        label="Token da API"
+                        type="password"
+                        value={tokenApiAcesso}
+                        onChange={(e) => {
+                          setTokenApiAcesso(e.target.value)
+                          if (mensagemAcesso) setMensagemAcesso(null)
+                        }}
+                        placeholder="Mesmo token usado no servidor"
+                      />
+                      {erroPin && <p className="text-xs text-red-600">{erroPin}</p>}
+                      <Button className="w-full justify-center" onClick={() => void validarTokenEContinuar()}>
+                        Validar token e continuar
+                      </Button>
+                    </div>
+                  )}
+
+                  {estadoAcesso === 'setup' && (
+                    <div className="space-y-3">
+                      <Input
+                        label="Token da API"
+                        type="password"
+                        value={tokenApiAcesso}
+                        onChange={(e) => {
+                          setTokenApiAcesso(e.target.value)
+                          if (mensagemAcesso) setMensagemAcesso(null)
+                        }}
+                        placeholder="Mesmo token usado no servidor"
+                      />
+                      <Input
+                        label="PIN de acesso"
+                        type="password"
+                        inputMode="numeric"
+                        maxLength={8}
+                        value={novoPin}
+                        onChange={(e) => setNovoPin(e.target.value.replace(/\D/g, ''))}
+                        placeholder="4 a 8 dígitos"
+                      />
+                      <Input
+                        label="Confirmar PIN"
+                        type="password"
+                        inputMode="numeric"
+                        maxLength={8}
+                        value={confirmarPin}
+                        onChange={(e) => setConfirmarPin(e.target.value.replace(/\D/g, ''))}
+                        placeholder="Repita o PIN"
+                      />
+                      {erroPin && <p className="text-xs text-red-600">{erroPin}</p>}
+                      {mensagemAcesso && (
+                        <p className={`text-xs ${mensagemAcesso.tipo === 'success' ? 'text-green-700' : 'text-red-600'}`}>
+                          {mensagemAcesso.texto}
+                        </p>
+                      )}
+                      <Button className="w-full justify-center" onClick={() => void criarPrimeiroPin()}>
+                        <Unlock className="w-4 h-4" />
+                        Salvar e entrar
+                      </Button>
+                    </div>
+                  )}
+
+                  {estadoAcesso === 'bloqueado' && (
+                    <div className="space-y-3">
+                      <Input
+                        label="Token da API (se precisar atualizar)"
+                        type="password"
+                        value={tokenApiAcesso}
+                        onChange={(e) => {
+                          setTokenApiAcesso(e.target.value)
+                          if (mensagemAcesso) setMensagemAcesso(null)
+                        }}
+                        placeholder="Mesmo token usado no servidor"
+                      />
+                      <Button
+                        variant="secondary"
+                        className="w-full justify-center"
+                        onClick={() => {
+                          if (salvarTokenApiLocal()) {
+                            setErroPin('')
+                            setMensagemAcesso({ tipo: 'success', texto: 'Token salvo com sucesso neste navegador.' })
+                          } else {
+                            setErroPin('Não foi possível salvar o token localmente neste navegador')
+                            setMensagemAcesso({ tipo: 'error', texto: 'Falha ao salvar token. Tente novamente.' })
+                          }
+                        }}
+                      >
+                        Salvar token neste navegador
+                      </Button>
+                      <div className="border-t border-gray-100 pt-3">
+                        <Input
+                          label="PIN"
+                          type="password"
+                          inputMode="numeric"
+                          maxLength={8}
+                          value={pinInput}
+                          onChange={(e) => setPinInput(e.target.value.replace(/\D/g, ''))}
+                          placeholder="Digite seu PIN"
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' && tentativas < 3) void desbloquear()
+                          }}
+                        />
+                      </div>
+                      {erroPin && <p className="text-xs text-red-600">{erroPin}</p>}
+                      {mensagemAcesso && (
+                        <p className={`text-xs ${mensagemAcesso.tipo === 'success' ? 'text-green-700' : 'text-red-600'}`}>
+                          {mensagemAcesso.texto}
+                        </p>
+                      )}
+                      <Button
+                        className="w-full justify-center"
+                        onClick={() => void desbloquear()}
+                        disabled={tentativas >= 3 || !pinInput}
+                      >
+                        <Unlock className="w-4 h-4" />
+                        Desbloquear
+                      </Button>
+                    </div>
+                  )}
+
+                </div>
               </div>
-              <div>
-                <h2 className="text-lg font-bold text-gray-900">{estadoAcesso === 'setup' ? 'Configurar PIN' : 'Sessão bloqueada'}</h2>
-                <p className="text-sm text-gray-500">{nomeEmpresa}</p>
-              </div>
+
+              {/* Rodapé discreto */}
+              <p className="text-center text-xs text-white/20 mt-5 select-none">Águia Gestão · Acesso seguro</p>
+
             </div>
-
-            {estadoAcesso === 'carregando' && <p className="text-sm text-gray-600">Carregando segurança...</p>}
-
-            {estadoAcesso === 'token' && (
-              <div className="space-y-3">
-                <p className="text-sm text-gray-600">
-                  O servidor exige autenticação. Informe o Token da API para validar o acesso antes de configurar/desbloquear PIN.
-                </p>
-                <Input
-                  label="Token da API"
-                  type="password"
-                  value={tokenApiAcesso}
-                  onChange={(e) => {
-                    setTokenApiAcesso(e.target.value)
-                    if (mensagemAcesso) setMensagemAcesso(null)
-                  }}
-                  placeholder="Mesmo token usado no servidor"
-                />
-                {erroPin && <p className="text-xs text-red-600">{erroPin}</p>}
-                <Button className="w-full justify-center" onClick={() => void validarTokenEContinuar()}>
-                  Validar token e continuar
-                </Button>
-              </div>
-            )}
-
-            {estadoAcesso === 'setup' && (
-              <div className="space-y-3">
-                <Input
-                  label="Token da API"
-                  type="password"
-                  value={tokenApiAcesso}
-                  onChange={(e) => {
-                    setTokenApiAcesso(e.target.value)
-                    if (mensagemAcesso) setMensagemAcesso(null)
-                  }}
-                  placeholder="Mesmo token usado no servidor"
-                />
-                <Input
-                  label="PIN de acesso"
-                  type="password"
-                  inputMode="numeric"
-                  maxLength={8}
-                  value={novoPin}
-                  onChange={(e) => setNovoPin(e.target.value.replace(/\D/g, ''))}
-                  placeholder="4 a 8 dígitos"
-                />
-                <Input
-                  label="Confirmar PIN"
-                  type="password"
-                  inputMode="numeric"
-                  maxLength={8}
-                  value={confirmarPin}
-                  onChange={(e) => setConfirmarPin(e.target.value.replace(/\D/g, ''))}
-                  placeholder="Repita o PIN"
-                />
-                {erroPin && <p className="text-xs text-red-600">{erroPin}</p>}
-                {mensagemAcesso && (
-                  <p className={`text-xs ${mensagemAcesso.tipo === 'success' ? 'text-green-700' : 'text-red-600'}`}>
-                    {mensagemAcesso.texto}
-                  </p>
-                )}
-                <Button className="w-full justify-center" onClick={() => void criarPrimeiroPin()}>
-                  <Unlock className="w-4 h-4" />
-                  Salvar e entrar
-                </Button>
-              </div>
-            )}
-
-            {estadoAcesso === 'bloqueado' && (
-              <div className="space-y-3">
-                <Input
-                  label="Token da API (se precisar atualizar)"
-                  type="password"
-                  value={tokenApiAcesso}
-                  onChange={(e) => {
-                    setTokenApiAcesso(e.target.value)
-                    if (mensagemAcesso) setMensagemAcesso(null)
-                  }}
-                  placeholder="Mesmo token usado no servidor"
-                />
-                <Button
-                  variant="secondary"
-                  className="w-full justify-center"
-                  onClick={() => {
-                    if (salvarTokenApiLocal()) {
-                      setErroPin('')
-                      setMensagemAcesso({ tipo: 'success', texto: 'Token salvo com sucesso neste navegador.' })
-                    } else {
-                      setErroPin('Não foi possível salvar o token localmente neste navegador')
-                      setMensagemAcesso({ tipo: 'error', texto: 'Falha ao salvar token. Tente novamente.' })
-                    }
-                  }}
-                >
-                  Salvar token neste navegador
-                </Button>
-                <Input
-                  label="PIN"
-                  type="password"
-                  inputMode="numeric"
-                  maxLength={8}
-                  value={pinInput}
-                  onChange={(e) => setPinInput(e.target.value.replace(/\D/g, ''))}
-                  placeholder="Digite seu PIN"
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' && tentativas < 3) void desbloquear()
-                  }}
-                />
-                {erroPin && <p className="text-xs text-red-600">{erroPin}</p>}
-                {mensagemAcesso && (
-                  <p className={`text-xs ${mensagemAcesso.tipo === 'success' ? 'text-green-700' : 'text-red-600'}`}>
-                    {mensagemAcesso.texto}
-                  </p>
-                )}
-                <Button
-                  className="w-full justify-center"
-                  onClick={() => void desbloquear()}
-                  disabled={tentativas >= 3 || !pinInput}
-                >
-                  <Unlock className="w-4 h-4" />
-                  Desbloquear
-                </Button>
-              </div>
-            )}
           </div>
         </div>
       )}
