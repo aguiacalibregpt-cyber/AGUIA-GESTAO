@@ -491,6 +491,9 @@ app.post('/api/pessoas', (req, res) => {
   if (!stringNaoVazia(novaPessoa.id) || !stringNaoVazia(novaPessoa.nome) || !stringNaoVazia(novaPessoa.cpf)) {
     return res.status(400).json({ message: 'Dados inválidos para pessoa' })
   }
+  if (db.pessoas.some((p) => p.id === pessoa.id)) {
+    return res.status(409).json({ message: 'Já existe uma pessoa com este ID' })
+  }
   const cpfNormalizado = normalizarCPF(pessoa.cpf)
   const duplicada = db.pessoas.find((p) => normalizarCPF(p.cpf) === cpfNormalizado)
   if (duplicada) return res.status(409).json({ message: 'Já existe uma pessoa com este CPF' })
@@ -685,6 +688,16 @@ if (fs.existsSync(DIST_DIR)) {
     res.sendFile(path.join(DIST_DIR, 'index.html'))
   })
 }
+
+// Tratador de erros global: evita vazar stack traces e caminhos internos no body da resposta.
+// eslint-disable-next-line no-unused-vars
+app.use((err, req, res, _next) => {
+  if (err?.type === 'entity.too.large' || err?.status === 413) {
+    return res.status(413).json({ message: 'Payload muito grande. O limite é 4 MB.' })
+  }
+  console.error('[AGUIA] Erro interno:', err?.message || err)
+  return res.status(500).json({ message: 'Erro interno do servidor' })
+})
 
 const port = Number(process.env.PORT || 3000)
 app.listen(port, '0.0.0.0', () => {
