@@ -874,15 +874,15 @@ export const Processos: React.FC<ProcessosProps> = ({ pessoaIdInicial }) => {
                                 type="date"
                                 value={novaDataPrazo}
                                 onChange={(e) => setNovaDataPrazo(e.target.value)}
-                                className="h-11 min-w-[190px] border border-blue-300 rounded-lg px-3 py-2 text-base bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                className="h-9 min-w-[150px] border border-blue-300 rounded-lg px-2 py-1 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                               />
                               <button
                                 type="button"
                                 onClick={() => abrirSeletorData(inputDataPrazoInlineRef.current)}
-                                className="h-11 px-3 py-2 text-sm font-medium bg-white text-blue-700 border border-blue-200 rounded-lg hover:bg-blue-100"
+                                className="h-9 px-2 py-1 text-xs font-medium bg-white text-blue-700 border border-blue-200 rounded-lg hover:bg-blue-100"
                                 title="Abrir calendário"
                               >
-                                <CalendarDays className="w-5 h-5" />
+                                <CalendarDays className="w-4 h-4" />
                               </button>
                               <button
                                 onClick={() => salvarDataPrazo(processo.id)}
@@ -1292,7 +1292,7 @@ export const Processos: React.FC<ProcessosProps> = ({ pessoaIdInicial }) => {
                       type="date"
                       value={formData.dataPrazo}
                       onChange={(e) => setFormData({ ...formData, dataPrazo: e.target.value })}
-                      className={`w-full px-3 py-2 pr-24 border rounded-lg text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent ${formErros.dataPrazo ? 'border-red-400 bg-red-50' : 'border-gray-300 bg-white'}`}
+                      className={`w-full min-h-11 px-3 py-2.5 pr-28 border rounded-lg text-base shadow-sm focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent ${formErros.dataPrazo ? 'border-red-400 bg-red-50' : 'border-gray-300 bg-white'}`}
                     />
                     <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
                       {formData.dataPrazo && (
@@ -1308,10 +1308,10 @@ export const Processos: React.FC<ProcessosProps> = ({ pessoaIdInicial }) => {
                       <button
                         type="button"
                         onClick={() => abrirSeletorData(inputDataPrazoModalRef.current)}
-                        className="p-1.5 rounded-md text-gray-500 hover:bg-gray-100 hover:text-gray-700"
+                        className="p-2 rounded-md text-gray-500 hover:bg-gray-100 hover:text-gray-700"
                         title="Abrir calendário"
                       >
-                        <CalendarDays className="w-4 h-4" />
+                        <CalendarDays className="w-5 h-5" />
                       </button>
                     </div>
                   </div>
