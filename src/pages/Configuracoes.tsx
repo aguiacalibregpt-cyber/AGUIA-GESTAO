@@ -366,19 +366,22 @@ export const Configuracoes: React.FC = () => {
       }, { timeoutMs: 60_000, retries: 1 })
 
       // Mantém também o banco local em sincronia para rotinas de diagnóstico/backup.
-      await db.pessoas.clear()
-      await db.processos.clear()
-      await db.documentosProcesso.clear()
-      await db.configuracoes.clear()
+      // Usa transação para evitar estado parcial caso uma etapa falhe.
+      await db.transaction('rw', [db.pessoas, db.processos, db.documentosProcesso, db.configuracoes], async () => {
+        await db.pessoas.clear()
+        await db.processos.clear()
+        await db.documentosProcesso.clear()
+        await db.configuracoes.clear()
 
-      await db.pessoas.bulkAdd(pessoasRestauradas)
-      await db.processos.bulkAdd(dados.processos)
-      if (dados.documentosProcesso?.length) {
-        await db.documentosProcesso.bulkAdd(dados.documentosProcesso as Parameters<typeof db.documentosProcesso.bulkAdd>[0])
-      }
-      if (dados.configuracoes?.length) {
-        await db.configuracoes.bulkAdd(dados.configuracoes as Parameters<typeof db.configuracoes.bulkAdd>[0])
-      }
+        await db.pessoas.bulkAdd(pessoasRestauradas)
+        await db.processos.bulkAdd(dados.processos)
+        if (dados.documentosProcesso?.length) {
+          await db.documentosProcesso.bulkAdd(dados.documentosProcesso as Parameters<typeof db.documentosProcesso.bulkAdd>[0])
+        }
+        if (dados.configuracoes?.length) {
+          await db.configuracoes.bulkAdd(dados.configuracoes as Parameters<typeof db.configuracoes.bulkAdd>[0])
+        }
+      })
 
       const novoHistorico = criarHistorico({
         origem: 'IMPORTACAO',
@@ -419,12 +422,14 @@ export const Configuracoes: React.FC = () => {
         configuracoes: [],
       }, { timeoutMs: 30_000, retries: 1 })
 
-      // Limpa banco local (cache de diagnóstico)
-      await db.pessoas.clear()
-      await db.processos.clear()
-      await db.documentosProcesso.clear()
-      await db.configuracoes.clear()
-      await db.backupsHistorico.clear()
+      // Limpa banco local (cache de diagnóstico) de forma atômica.
+      await db.transaction('rw', [db.pessoas, db.processos, db.documentosProcesso, db.configuracoes, db.backupsHistorico], async () => {
+        await db.pessoas.clear()
+        await db.processos.clear()
+        await db.documentosProcesso.clear()
+        await db.configuracoes.clear()
+        await db.backupsHistorico.clear()
+      })
 
       await carregarPessoas()
       await carregarProcessos()

@@ -356,6 +356,17 @@ export const Processos: React.FC<ProcessosProps> = ({ pessoaIdInicial }) => {
     return () => window.removeEventListener('keydown', aoPressionarTecla)
   }, [mostraModal, mostraCriarPessoa])
 
+  useEffect(() => {
+    if (!credenciais) return
+    const aoPressionarTecla = (evento: KeyboardEvent) => {
+      if (evento.key === 'Escape') {
+        setCredenciais(null)
+      }
+    }
+    window.addEventListener('keydown', aoPressionarTecla)
+    return () => window.removeEventListener('keydown', aoPressionarTecla)
+  }, [credenciais])
+
   const salvarProcessoFormulario = async (criarOutro = false) => {
     if (salvandoProcesso) return
     if (!formData.tipo) {
@@ -863,15 +874,15 @@ export const Processos: React.FC<ProcessosProps> = ({ pessoaIdInicial }) => {
                                 type="date"
                                 value={novaDataPrazo}
                                 onChange={(e) => setNovaDataPrazo(e.target.value)}
-                                className="h-9 min-w-[150px] border border-blue-300 rounded-lg px-2 py-1 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                className="h-11 min-w-[190px] border border-blue-300 rounded-lg px-3 py-2 text-base bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                               />
                               <button
                                 type="button"
                                 onClick={() => abrirSeletorData(inputDataPrazoInlineRef.current)}
-                                className="h-9 px-2 py-1 text-xs font-medium bg-white text-blue-700 border border-blue-200 rounded-lg hover:bg-blue-100"
+                                className="h-11 px-3 py-2 text-sm font-medium bg-white text-blue-700 border border-blue-200 rounded-lg hover:bg-blue-100"
                                 title="Abrir calendário"
                               >
-                                <CalendarDays className="w-4 h-4" />
+                                <CalendarDays className="w-5 h-5" />
                               </button>
                               <button
                                 onClick={() => salvarDataPrazo(processo.id)}

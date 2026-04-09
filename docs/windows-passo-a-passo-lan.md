@@ -178,6 +178,11 @@ powershell -ExecutionPolicy Bypass -File .\scripts\windows\create-portable-packa
 
 Depois copie a pasta para o host definitivo.
 
+Atualizacao recomendada (sem perder dados):
+1. No host atual, rode backup manual antes de atualizar.
+2. Copie os novos arquivos sem sobrescrever `server\\data\\db.json` da instalacao em uso.
+3. Se usar extracao de zip, confirme ao final que `server\\data\\db.json` manteve data/tamanho esperados.
+
 ## 10. Rotina diaria recomendada
 
 1. Verifique se o host ligou o servidor automaticamente.
@@ -308,6 +313,7 @@ Banco compartilhado usado pelos 3 PCs:
 - `server\\data\\db.json`
 
 Nao apague esse arquivo.
+Nao sobrescreva esse arquivo durante atualizacoes do pacote.
 
 ## 12. Solucao de problemas
 

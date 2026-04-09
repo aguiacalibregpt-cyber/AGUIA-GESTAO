@@ -194,6 +194,26 @@ try {
   $env:AGUIA_API_TOKEN = $tokenFinal
   $env:AGUIA_ALLOWED_ORIGINS = $AllowedOrigins
 
+  $dbFile = Join-Path $repoRoot "server\data\db.json"
+  if (Test-Path $dbFile) {
+    try {
+      $dbRaw = Get-Content -Path $dbFile -Raw -ErrorAction Stop
+      $dbObj = $dbRaw | ConvertFrom-Json -ErrorAction Stop
+      $qtPessoas = @($dbObj.pessoas).Count
+      $qtProcessos = @($dbObj.processos).Count
+      $qtDocumentos = @($dbObj.documentosProcesso).Count
+      $qtConfiguracoes = @($dbObj.configuracoes).Count
+      Write-Log "[INFO] Banco atual: pessoas=$qtPessoas, processos=$qtProcessos, documentos=$qtDocumentos, configuracoes=$qtConfiguracoes"
+      if ($qtPessoas -eq 0 -and $qtProcessos -eq 0 -and $qtDocumentos -eq 0 -and $qtConfiguracoes -eq 0) {
+        Write-Log "[AVISO] Banco atual esta vazio. Se esperava dados, restaure backup antes de operar."
+      }
+    } catch {
+      Write-Log "[AVISO] Nao foi possivel ler diagnostico do db.json: $($_.Exception.Message)"
+    }
+  } else {
+    Write-Log "[AVISO] db.json nao encontrado. O servidor criara um banco novo no primeiro start."
+  }
+
   Write-Log "[INFO] AGUIA_API_TOKEN configurado."
   Write-Log "[INFO] AGUIA_ALLOWED_ORIGINS=$AllowedOrigins"
   Write-Log "[INFO] Iniciando servidor em processo dedicado..."

@@ -38,6 +38,33 @@ foreach ($item in $items) {
   }
 }
 
+# Nao inclui dados/sigilo da instalacao de origem no pacote portatil.
+$serverDataDir = Join-Path $OutDir "server\data"
+New-Item -ItemType Directory -Force -Path $serverDataDir | Out-Null
+
+$sensiveis = @(
+  "db.json",
+  "db.json.tmp",
+  ".security-secret"
+)
+
+foreach ($nome in $sensiveis) {
+  $alvo = Join-Path $serverDataDir $nome
+  if (Test-Path $alvo) {
+    Remove-Item -Path $alvo -Force -ErrorAction SilentlyContinue
+  }
+}
+
+$notaDados = Join-Path $serverDataDir "LEIA-ME-DADOS.txt"
+@"
+Esta pasta armazena os dados da instalacao (db.json).
+
+Atualizacao segura:
+1) Faca backup antes de atualizar.
+2) Nao sobrescreva o arquivo server\\data\\db.json da instalacao em uso.
+3) Se o arquivo nao existir, o servidor criara um novo automaticamente no primeiro start.
+"@ | Set-Content -Path $notaDados -Encoding UTF8
+
 $readme = Join-Path $OutDir "LEIA-ME-PRIMEIRO.txt"
 @"
 PACOTE PORTATIL AGUIA (HOST LOCAL)
@@ -52,6 +79,10 @@ Observacao:
 
 Backup manual:
 powershell -ExecutionPolicy Bypass -File .\scripts\windows\backup-db.ps1
+
+Importante:
+- Este pacote NAO inclui server\\data\\db.json nem .security-secret.
+- Em atualizacoes, preserve o server\\data\\db.json da instalacao existente.
 "@ | Set-Content -Path $readme -Encoding UTF8
 
 Write-Host "Pacote criado em: $OutDir"

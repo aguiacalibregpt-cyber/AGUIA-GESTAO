@@ -215,6 +215,18 @@ describe('Processos filtros', () => {
     expect(screen.getByRole('dialog', { name: 'Novo Processo' })).toBeTruthy()
   })
 
+  test('Esc fecha o popup de credenciais', async () => {
+    const user = userEvent.setup()
+    render(<Processos />)
+
+    await user.click(screen.getAllByTitle('Ver credenciais')[0])
+    expect(screen.getByRole('dialog', { name: 'Credenciais Gov.br' })).toBeTruthy()
+
+    await user.keyboard('{Escape}')
+
+    expect(screen.queryByRole('dialog', { name: 'Credenciais Gov.br' })).toBeNull()
+  })
+
   test('Ctrl+Enter nao salva processo enquanto modal de Nova Pessoa estiver aberto', async () => {
     const user = userEvent.setup()
     render(<Processos />)

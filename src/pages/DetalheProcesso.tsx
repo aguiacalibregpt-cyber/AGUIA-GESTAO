@@ -179,6 +179,7 @@ export const DetalheProcesso: React.FC<DetalheProcessoProps> = ({ processoId, on
   const [sincronizando, setSincronizando] = useState(false)
   const [mensagem, setMensagem] = useState<{ tipo: 'success' | 'error'; texto: string } | null>(null)
   const [observacoesProcesso, setObservacoesProcesso] = useState('')
+  const [observacoesProcessoEditando, setObservacoesProcessoEditando] = useState(false)
   const [observacoesDraft, setObservacoesDraft] = useState<Record<string, string>>({})
   const sincronizacaoEmAndamentoRef = useRef(false)
   const autoSyncExecutadaRef = useRef(false)
@@ -222,8 +223,18 @@ export const DetalheProcesso: React.FC<DetalheProcessoProps> = ({ processoId, on
   }, [processoId, carregarProcessos, carregarDocumentosPorProcesso])
 
   useEffect(() => {
+    // Ao trocar de processo, sempre reinicia o texto com o valor persistido.
     setObservacoesProcesso(processo?.observacoes || '')
-  }, [processo?.id, processo?.observacoes])
+    setObservacoesProcessoEditando(false)
+    // Dependemos apenas do id: mudanças de observacoes via polling nao devem encerrar a edicao local.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [processo?.id])
+
+  useEffect(() => {
+    // Durante edicao local, evita sobrescrever o draft com o polling de 5s.
+    if (observacoesProcessoEditando) return
+    setObservacoesProcesso(processo?.observacoes || '')
+  }, [processo?.observacoes, observacoesProcessoEditando])
 
   // Sincroniza documentos do checklist com o banco (deduplica, adiciona faltantes)
   const sincronizarChecklist = useCallback(async (opts?: { silencioso?: boolean }) => {
@@ -364,10 +375,14 @@ export const DetalheProcesso: React.FC<DetalheProcessoProps> = ({ processoId, on
   const salvarObservacoesProcesso = async () => {
     const textoDraft = observacoesProcesso.trim()
     const textoAtual = (processo?.observacoes || '').trim()
-    if (!processo || textoDraft === textoAtual) return
+    if (!processo || textoDraft === textoAtual) {
+      setObservacoesProcessoEditando(false)
+      return
+    }
 
     try {
       await atualizarProcesso(processo.id, { observacoes: textoDraft })
+      setObservacoesProcessoEditando(false)
     } catch (error) {
       setMensagem({ tipo: 'error', texto: obterMensagemErro(error, 'Erro ao salvar observações do processo') })
     }
@@ -542,7 +557,10 @@ export const DetalheProcesso: React.FC<DetalheProcessoProps> = ({ processoId, on
         </div>
         <textarea
           value={observacoesProcesso}
-          onChange={(e) => setObservacoesProcesso(e.target.value)}
+          onChange={(e) => {
+            setObservacoesProcesso(e.target.value)
+            setObservacoesProcessoEditando(true)
+          }}
           onBlur={() => void salvarObservacoesProcesso()}
           placeholder="Registre aqui observações gerais deste processo..."
           className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-600 resize-y min-h-[110px]"
