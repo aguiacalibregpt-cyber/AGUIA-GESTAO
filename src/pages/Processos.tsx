@@ -1308,10 +1308,10 @@ export const Processos: React.FC<ProcessosProps> = ({ pessoaIdInicial }) => {
                       <button
                         type="button"
                         onClick={() => abrirSeletorData(inputDataPrazoModalRef.current)}
-                        className="p-2 rounded-md text-gray-500 hover:bg-gray-100 hover:text-gray-700"
+                        className="p-2.5 rounded-md text-gray-500 hover:bg-gray-100 hover:text-gray-700"
                         title="Abrir calendário"
                       >
-                        <CalendarDays className="w-5 h-5" />
+                        <CalendarDays className="w-6 h-6" />
                       </button>
                     </div>
                   </div>
